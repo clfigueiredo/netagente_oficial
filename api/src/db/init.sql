@@ -250,6 +250,61 @@ BEGIN
     ON CONFLICT (key) DO NOTHING
   ', v_schema);
 
+  -- Device Snapshots (fingerprint data captured by agent)
+  EXECUTE format('
+    CREATE TABLE IF NOT EXISTS %s.device_snapshots (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      device_id   UUID NOT NULL REFERENCES %s.devices(id) ON DELETE CASCADE,
+      os_info     TEXT,
+      disk_info   TEXT,
+      services    TEXT,
+      ports       TEXT,
+      cpu_percent FLOAT,
+      ram_percent FLOAT,
+      disk_percent FLOAT,
+      notes       TEXT,
+      captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )', v_schema, v_schema);
+
+  -- MCP Drivers (per-tenant registered MCP microservices)
+  EXECUTE format('
+    CREATE TABLE IF NOT EXISTS %s.mcp_drivers (
+      id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name             VARCHAR(100) UNIQUE NOT NULL,
+      url              VARCHAR(500) NOT NULL,
+      device_type      VARCHAR(50) NOT NULL,
+      scopes           JSONB NOT NULL DEFAULT ''[]'',
+      transport        VARCHAR(20) DEFAULT ''streamable-http'',
+      health_endpoint  VARCHAR(100) DEFAULT ''/health'',
+      mcp_endpoint     VARCHAR(100) DEFAULT ''/mcp'',
+      status           VARCHAR(20) DEFAULT ''offline'',
+      circuit_config   JSONB DEFAULT ''{
+        "failure_threshold": 3,
+        "recovery_timeout_s": 30,
+        "call_timeout_s": 15
+      }''::JSONB,
+      active           BOOLEAN NOT NULL DEFAULT true,
+      last_health_check TIMESTAMPTZ,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )', v_schema);
+
+  -- Automations (cron-based skill execution)
+  EXECUTE format('
+    CREATE TABLE IF NOT EXISTS %s.automations (
+      id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name                VARCHAR(255) NOT NULL,
+      skill_id            UUID NOT NULL REFERENCES public.skills(id) ON DELETE CASCADE,
+      target_devices      JSONB NOT NULL DEFAULT ''[]'',
+      cron_expression     VARCHAR(50) NOT NULL,
+      is_active           BOOLEAN NOT NULL DEFAULT true,
+      notification_target VARCHAR(100) DEFAULT ''default'',
+      last_run_at         TIMESTAMPTZ,
+      last_status         VARCHAR(50),
+      created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )', v_schema);
+
   -- Tenant RAG Memories (Medium-Term Memory)
   EXECUTE format('
     CREATE TABLE IF NOT EXISTS %s.tenant_memories (

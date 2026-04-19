@@ -96,10 +96,18 @@ PGPASSWORD="${POSTGRES_PASSWORD}" docker exec -i netagent-postgres \
   psql -U netagent -d netagent < api/src/db/init.sql
 log "Schema aplicado."
 
+# ── 4b. Seed MCP drivers se existir ──────────────────────────────────────────
+if [[ -f api/scripts/add_mcp_drivers.sql ]]; then
+  info "Aplicando MCP drivers..."
+  PGPASSWORD="${POSTGRES_PASSWORD}" docker exec -i netagent-postgres \
+    psql -U netagent -d netagent < api/scripts/add_mcp_drivers.sql 2>/dev/null || true
+  log "MCP drivers aplicados."
+fi
+
 # ── 5. API Node.js ────────────────────────────────────────────────────────────
 info "Instalando dependências da API..."
 cp .env api/.env
-cd api && npm install --production && cd "${PROJECT_DIR}"
+cd api && npm install --production && npx prisma generate 2>/dev/null || true && cd "${PROJECT_DIR}"
 log "npm install OK."
 
 # ── 6. Agent Python ───────────────────────────────────────────────────────────
@@ -110,6 +118,11 @@ cd agent
 ./venv/bin/pip install --quiet -r requirements.txt
 cd "${PROJECT_DIR}"
 log "pip install OK."
+
+# ── 6b. Frontend Build ────────────────────────────────────────────────────────
+info "Build do frontend..."
+cd frontend && npm install && npm run build && cd "${PROJECT_DIR}"
+log "Frontend build OK."
 
 # ── 7. Superadmin (apenas na primeira execução) ───────────────────────────────
 ADMIN_COUNT=$(PGPASSWORD="${POSTGRES_PASSWORD}" docker exec netagent-postgres \
