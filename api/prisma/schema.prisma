@@ -1,0 +1,78 @@
+// This is your Prisma schema file for the PUBLIC schema models.
+// Tenant-specific tables are accessed via $queryRawUnsafe (dynamic schema).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public"]
+}
+
+model Plan {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String    @db.VarChar(100)
+  maxDevices           Int       @map("max_devices")
+  maxUsers             Int       @map("max_users")
+  maxWhatsappNumbers   Int       @default(3) @map("max_whatsapp_numbers")
+  priceMonthly         Decimal?  @map("price_monthly") @db.Decimal(10, 2)
+  features             Json      @default("{}")
+  active               Boolean   @default(true)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  tenants              Tenant[]
+
+  @@map("plans")
+  @@schema("public")
+}
+
+
+model Tenant {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String    @db.VarChar(255)
+  slug                 String    @unique @db.VarChar(100)
+  planId               String?   @map("plan_id") @db.Uuid
+  plan                 Plan?     @relation(fields: [planId], references: [id])
+  evolutionInstance    String?   @map("evolution_instance") @db.VarChar(100)
+  evolutionKey         String?   @map("evolution_key") @db.VarChar(255)
+  openaiKeyEncrypted   String?   @map("openai_key_encrypted") @db.VarChar(500)
+  gptModel             String    @default("gpt-4o") @map("gpt_model") @db.VarChar(50)
+  adminEmail           String    @map("admin_email") @db.VarChar(255)
+  active               Boolean   @default(true)
+  trialEndsAt          DateTime? @map("trial_ends_at") @db.Timestamptz()
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("tenants")
+  @@schema("public")
+}
+
+model Skill {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String    @unique @db.VarChar(100)
+  displayName    String    @map("display_name") @db.VarChar(200)
+  description    String
+  category       String    @db.VarChar(50)
+  deviceType     String?   @map("device_type") @db.VarChar(50)
+  promptTemplate String?   @map("prompt_template")
+  tools          Json      @default("[]")
+  examples       Json      @default("[]")
+  version        Int       @default(1)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("skills")
+  @@schema("public")
+}
+
+model PlatformUser {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         String   @default("admin") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("platform_users")
+  @@schema("public")
+}

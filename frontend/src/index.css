@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { font-size: 16px; }
+
+body {
+  font-family: 'Fira Sans', sans-serif;
+  background-color: #0A0A0F;
+  color: #E2E8F0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #111117; }
+::-webkit-scrollbar-thumb { background: #1E1E2E; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #2A2A3E; }
+
+/* ── Focus outline ────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Typography ───────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Fira Code', monospace;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+code, pre, .mono { font-family: 'Fira Code', monospace; }
+
+/* ── Selection ────────────────────────────────────────────────────────────── */
+::selection {
+  background: #1E3A5F;
+  color: #E2E8F0;
+}
+
+/* ── Transitions ──────────────────────────────────────────────────────────── */
+a, button { transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ── Glow effects ─────────────────────────────────────────────────────────── */
+.glow-blue  { box-shadow: 0 0 20px rgba(59,130,246,0.15); }
+.glow-green { box-shadow: 0 0 16px rgba(34,197,94,0.20); }
+.glow-red   { box-shadow: 0 0 16px rgba(239,68,68,0.20); }
+
+/* ── Status dots ──────────────────────────────────────────────────────────── */
+.dot-online  { @apply w-2 h-2 rounded-full bg-success; }
+.dot-offline { @apply w-2 h-2 rounded-full bg-danger; }
+.dot-unknown { @apply w-2 h-2 rounded-full bg-text-muted; }
+
+/* ── Chat bubbles ─────────────────────────────────────────────────────────── */
+.bubble-user      { @apply bg-primary-muted border border-primary/30 text-text rounded-2xl rounded-br-sm; }
+.bubble-assistant { @apply bg-bg-elevated border border-border text-text rounded-2xl rounded-bl-sm; }
