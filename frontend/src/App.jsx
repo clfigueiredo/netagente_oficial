@@ -12,6 +12,7 @@ import Admin from './pages/Admin'
 import Skills from './pages/Skills'
 import Automations from './pages/Automations'
 import Backups from './pages/Backups'
+import KnowledgeBase from './pages/KnowledgeBase'
 import WireGuard from './pages/WireGuard'
 import DocsMikrotik from './pages/DocsMikrotik'
 import DocsLinux from './pages/DocsLinux'
@@ -44,6 +45,7 @@ export default function App() {
                     <Route path="skills" element={<Skills />} />
                     <Route path="automations" element={<Automations />} />
                     <Route path="backups" element={<Backups />} />
+                    <Route path="knowledge" element={<KnowledgeBase />} />
                     <Route path="wireguard" element={<WireGuard />} />
                     <Route path="docs">
                         <Route path="mikrotik" element={<DocsMikrotik />} />

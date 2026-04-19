@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
     LayoutDashboard, Server, MessageSquare, History,
-    Clock, Settings, ShieldCheck, LogOut, Wifi, Zap, BookOpen, ChevronDown, ChevronRight, Layers, Activity, Cpu, HardDrive, Network, Box
+    Clock, Settings, ShieldCheck, LogOut, Wifi, Zap, BookOpen, ChevronDown, ChevronRight, Layers, Activity, Cpu, HardDrive, Network, Box, Brain
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { disconnectSocket } from '../../lib/socket'
@@ -15,6 +15,7 @@ const navItems = [
     { to: '/conversations', icon: History, label: 'Histórico' },
     { to: '/automations', icon: Zap, label: 'Automações' },
     { to: '/backups', icon: HardDrive, label: 'Backups FTP' },
+    { to: '/knowledge', icon: Brain, label: 'Base de Conhecimento' },
     { to: '/wireguard', icon: Network, label: 'VPN WireGuard' },
     { to: '/pending', icon: Clock, label: 'Aprovações' },
     { to: '/settings', icon: Settings, label: 'Configurações' },
