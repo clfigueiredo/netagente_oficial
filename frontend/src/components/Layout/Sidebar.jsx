@@ -140,6 +140,12 @@ export default function Sidebar() {
                             >
                                 <Box size={14} /> Deploy & Instalação
                             </NavLink>
+                            <NavLink
+                                to="/docs/memory"
+                                className={({ isActive }) => clsx("flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors", isActive ? "text-primary bg-primary/5" : "text-text-muted hover:text-text")}
+                            >
+                                <Brain size={14} /> Memória RAG
+                            </NavLink>
                         </div>
                     )}
                 </div>

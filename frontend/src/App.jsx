@@ -21,6 +21,7 @@ import DocsAutomations from './pages/DocsAutomations'
 import DocsBackups from './pages/DocsBackups'
 import DocsWireguard from './pages/DocsWireguard'
 import DocsDeploy from './pages/DocsDeploy'
+import DocsMemory from './pages/DocsMemory'
 
 function ProtectedRoute({ children, requireSuperAdmin = false }) {
     const { token, user } = useAuthStore()
@@ -55,6 +56,7 @@ export default function App() {
                         <Route path="backups" element={<DocsBackups />} />
                         <Route path="wireguard" element={<DocsWireguard />} />
                         <Route path="deploy" element={<DocsDeploy />} />
+                        <Route path="memory" element={<DocsMemory />} />
                     </Route>
                     <Route path="settings" element={<Settings />} />
                     <Route path="admin" element={
