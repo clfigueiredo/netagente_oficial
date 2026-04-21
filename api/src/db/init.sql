@@ -187,17 +187,24 @@ BEGIN
   -- Messages
   EXECUTE format('
     CREATE TABLE IF NOT EXISTS %s.messages (
-      id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      conversation_id UUID NOT NULL REFERENCES %s.conversations(id) ON DELETE CASCADE,
-      role            VARCHAR(20) NOT NULL CHECK (role IN (''user'',''assistant'',''system'')),
-      content         TEXT NOT NULL,
-      device_id       UUID,
-      tool_calls      JSONB NOT NULL DEFAULT ''[]'',
-      reasoning       JSONB NOT NULL DEFAULT ''[]'',
-      audio_url       VARCHAR(500),
-      tokens_used     INTEGER NOT NULL DEFAULT 0,
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      conversation_id   UUID NOT NULL REFERENCES %s.conversations(id) ON DELETE CASCADE,
+      role              VARCHAR(20) NOT NULL CHECK (role IN (''user'',''assistant'',''system'')),
+      content           TEXT NOT NULL,
+      device_id         UUID,
+      tool_calls        JSONB NOT NULL DEFAULT ''[]'',
+      reasoning         JSONB NOT NULL DEFAULT ''[]'',
+      audio_url         VARCHAR(500),
+      tokens_used       INTEGER NOT NULL DEFAULT 0,
+      pending_action_id UUID,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )', v_schema, v_schema);
+
+  -- Retro-compat: garante a coluna em schemas de tenants pré-existentes
+  EXECUTE format(
+    'ALTER TABLE %s.messages ADD COLUMN IF NOT EXISTS pending_action_id UUID',
+    v_schema
+  );
 
   -- Pending actions (require approval)
   EXECUTE format('
@@ -400,3 +407,28 @@ $$ LANGUAGE plpgsql;
 -- Helpful comment on how to use
 COMMENT ON FUNCTION public.create_tenant_schema(TEXT) IS
   'Creates a complete isolated schema for a new tenant. Usage: SELECT public.create_tenant_schema(''tenant-slug'');';
+
+-- =============================================================================
+-- Retro-compat migrations — aplicam a schemas de tenants já existentes
+-- Rodadas automaticamente a cada reaplicação deste init.sql
+-- =============================================================================
+DO $mig$
+DECLARE
+  s TEXT;
+BEGIN
+  FOR s IN
+    SELECT schema_name FROM information_schema.schemata
+    WHERE schema_name NOT IN ('public','pg_catalog','information_schema','pg_toast')
+      AND schema_name NOT LIKE 'pg_temp_%'
+      AND schema_name NOT LIKE 'pg_toast_temp_%'
+  LOOP
+    -- messages.pending_action_id (usada por api/src/routes/messages.js e agent/db.py)
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = s AND table_name = 'messages'
+    ) THEN
+      EXECUTE format('ALTER TABLE %I.messages ADD COLUMN IF NOT EXISTS pending_action_id UUID', s);
+    END IF;
+  END LOOP;
+END
+$mig$;
