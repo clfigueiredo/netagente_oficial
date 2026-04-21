@@ -44,6 +44,36 @@ ORIG_EMAIL_SSL="admin@forumtelecom.com.br"
 
 gen_secret() { openssl rand -hex 32; }
 
+# Sanitiza e valida um nome de domínio informado pelo operador.
+# Remove http(s)://, barras finais e espaços. Rejeita se não parece domínio.
+sanitize_domain() {
+  local d="$1"
+  d="${d#http://}"; d="${d#https://}"
+  d="${d%/}"
+  d="$(echo -n "$d" | tr -d '[:space:]')"
+  if [[ ! "$d" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$ ]]; then
+    echo "__INVALID__"
+    return
+  fi
+  printf '%s' "$d"
+}
+
+# Lê um domínio do operador, sanitiza e repete até vir válido.
+read_domain() {
+  local prompt="$1" default="$2" val sanitized
+  while true; do
+    read -rp "${prompt} [${default}]: " val
+    val="${val:-$default}"
+    sanitized=$(sanitize_domain "$val")
+    if [[ "${sanitized}" == "__INVALID__" ]]; then
+      warn "Domínio inválido: '${val}'. Exemplo: agente.meucliente.com.br"
+      continue
+    fi
+    printf '%s' "${sanitized}"
+    return
+  done
+}
+
 # ── 0. Pré-checks ────────────────────────────────────────────────────────────
 require_root() {
   [[ $EUID -eq 0 ]] || error "Execute como root: sudo bash install.sh"
@@ -81,17 +111,14 @@ check_repo_layout() {
 
 prompt_config() {
   step "Configuração"
-  read -rp "Domínio da Plataforma [${DEFAULT_DOMAIN_PLATFORM}]: " DOMAIN_PLATFORM
-  DOMAIN_PLATFORM="${DOMAIN_PLATFORM:-$DEFAULT_DOMAIN_PLATFORM}"
-
-  read -rp "Domínio da Evolution API [${DEFAULT_DOMAIN_EVOLUTION}]: " DOMAIN_EVOLUTION
-  DOMAIN_EVOLUTION="${DOMAIN_EVOLUTION:-$DEFAULT_DOMAIN_EVOLUTION}"
+  DOMAIN_PLATFORM=$(read_domain "Domínio da Plataforma" "${DEFAULT_DOMAIN_PLATFORM}")
+  DOMAIN_EVOLUTION=$(read_domain "Domínio da Evolution API" "${DEFAULT_DOMAIN_EVOLUTION}")
 
   read -rp "E-mail para Let's Encrypt [${DEFAULT_EMAIL_SSL}]: " EMAIL_SSL
-  EMAIL_SSL="${EMAIL_SSL:-$DEFAULT_EMAIL_SSL}"
+  EMAIL_SSL="$(echo -n "${EMAIL_SSL:-$DEFAULT_EMAIL_SSL}" | tr -d '[:space:]')"
 
   read -rp "E-mail do superadmin inicial [${DEFAULT_ADMIN_EMAIL}]: " ADMIN_EMAIL
-  ADMIN_EMAIL="${ADMIN_EMAIL:-$DEFAULT_ADMIN_EMAIL}"
+  ADMIN_EMAIL="$(echo -n "${ADMIN_EMAIL:-$DEFAULT_ADMIN_EMAIL}" | tr -d '[:space:]')"
 
   while true; do
     read -rsp "Chave OpenAI (sk-...): " OPENAI_KEY
@@ -198,6 +225,11 @@ setup_dirs() {
     "${PROJECT_DIR}/logs"
   touch "${PROJECT_DIR}/traefik/certs/acme.json"
   chmod 600 "${PROJECT_DIR}/traefik/certs/acme.json"
+  # Remove file-provider legado (host-services.yml tinha subdomínios hardcoded
+  # que o Traefik tentava emitir cert automaticamente e falhava, travando a
+  # emissão do cert do domínio real). O routing interno /api e /socket.io é
+  # feito pelo nginx-frontend.conf — Traefik só precisa das labels do compose.
+  rm -f "${PROJECT_DIR}/traefik/config/host-services.yml"
   log "Diretórios prontos."
 }
 

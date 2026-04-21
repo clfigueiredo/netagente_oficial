@@ -46,6 +46,33 @@ COMPOSE_SERVICES=(traefik frontend postgres redis mcp-mikrotik mcp-linux wiregua
 
 gen_secret() { openssl rand -hex 32; }
 
+sanitize_domain() {
+  local d="$1"
+  d="${d#http://}"; d="${d#https://}"
+  d="${d%/}"
+  d="$(echo -n "$d" | tr -d '[:space:]')"
+  if [[ ! "$d" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$ ]]; then
+    echo "__INVALID__"
+    return
+  fi
+  printf '%s' "$d"
+}
+
+read_domain() {
+  local prompt="$1" default="$2" val sanitized
+  while true; do
+    read -rp "${prompt} [${default}]: " val
+    val="${val:-$default}"
+    sanitized=$(sanitize_domain "$val")
+    if [[ "${sanitized}" == "__INVALID__" ]]; then
+      warn "Domínio inválido: '${val}'. Exemplo: agente.meucliente.com.br"
+      continue
+    fi
+    printf '%s' "${sanitized}"
+    return
+  done
+}
+
 # ── 0. Pré-checks ────────────────────────────────────────────────────────────
 require_root() {
   [[ $EUID -eq 0 ]] || error "Execute como root: sudo bash install.sh"
@@ -83,14 +110,13 @@ check_repo_layout() {
 
 prompt_config() {
   step "Configuração (sem Evolution API)"
-  read -rp "Domínio da Plataforma [${DEFAULT_DOMAIN_PLATFORM}]: " DOMAIN_PLATFORM
-  DOMAIN_PLATFORM="${DOMAIN_PLATFORM:-$DEFAULT_DOMAIN_PLATFORM}"
+  DOMAIN_PLATFORM=$(read_domain "Domínio da Plataforma" "${DEFAULT_DOMAIN_PLATFORM}")
 
   read -rp "E-mail para Let's Encrypt [${DEFAULT_EMAIL_SSL}]: " EMAIL_SSL
-  EMAIL_SSL="${EMAIL_SSL:-$DEFAULT_EMAIL_SSL}"
+  EMAIL_SSL="$(echo -n "${EMAIL_SSL:-$DEFAULT_EMAIL_SSL}" | tr -d '[:space:]')"
 
   read -rp "E-mail do superadmin inicial [${DEFAULT_ADMIN_EMAIL}]: " ADMIN_EMAIL
-  ADMIN_EMAIL="${ADMIN_EMAIL:-$DEFAULT_ADMIN_EMAIL}"
+  ADMIN_EMAIL="$(echo -n "${ADMIN_EMAIL:-$DEFAULT_ADMIN_EMAIL}" | tr -d '[:space:]')"
 
   while true; do
     read -rsp "Chave OpenAI (sk-...): " OPENAI_KEY
@@ -197,6 +223,9 @@ setup_dirs() {
     "${PROJECT_DIR}/logs"
   touch "${PROJECT_DIR}/traefik/certs/acme.json"
   chmod 600 "${PROJECT_DIR}/traefik/certs/acme.json"
+  # Remove file-provider legado (host-services.yml) — Traefik só precisa das
+  # labels do compose; o routing /api é feito pelo nginx-frontend.conf.
+  rm -f "${PROJECT_DIR}/traefik/config/host-services.yml"
   log "Diretórios prontos."
 }
 
