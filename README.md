@@ -47,7 +47,6 @@ O NetAgent é uma plataforma multi-tenant SaaS que permite ISPs gerenciarem sua 
 | **Cache** | Redis 7 | Sessões, cache, filas |
 | **WhatsApp** | Evolution API v2 | Integração WhatsApp para alertas e chat com o agente |
 | **Proxy** | Traefik v3 | Reverse proxy com SSL automático (Let's Encrypt) |
-| **FTP** | vsftpd | Servidor FTP para receber backups automáticos dos MikroTik |
 
 ---
 
@@ -90,10 +89,9 @@ agente_forum_telecom/
 ├── docker/
 │   └── wireguard/          #   Dockerfile do WireGuard concentrador
 │
-├── installer/              # Pacote de instalação
-│   ├── build.sh            #   Script de geração do pacote
-│   └── scripts/
-│       └── install.sh      #   Instalador universal (Debian/Ubuntu)
+├── installer/              # Pacote de instalação legado
+│   ├── build.sh            #   Geração de tarball distribuível
+│   └── scripts/install.sh  #   Instalador antigo (DEPRECATED — usar scripts da raiz)
 │
 ├── traefik/                # Config do reverse proxy
 │   ├── certs/              #   Certificados SSL (auto-gerados)
@@ -108,11 +106,14 @@ agente_forum_telecom/
 │
 ├── docs/                   # Documentação
 │
-├── docker-compose.yml      # Orquestração de todos os containers
-├── deploy.sh               # Deploy in-place (produção)
-├── deploy-frontend.sh      # Build e deploy do frontend
-├── server-setup.sh         # Setup completo do servidor (Debian 12)
-└── .env.example            # Template de variáveis de ambiente
+├── docker-compose.yml           # Orquestração de todos os containers
+├── install.sh                   # ✅ Instalador completo (plataforma + Evolution)
+├── install-no-evolution.sh      # ✅ Plataforma sem Evolution API
+├── install-evolution-only.sh    # ✅ Evolution API em servidor dedicado
+├── deploy.sh                    # Deploy incremental (produção)
+├── deploy-frontend.sh           # Build + redeploy do frontend
+├── server-setup.sh              # (legado) apenas infra Docker
+└── .env.example                 # Template de variáveis de ambiente
 ```
 
 ---
@@ -120,43 +121,65 @@ agente_forum_telecom/
 ## 🚀 Quick Start
 
 ### Pré-requisitos
-- Debian 12 / Ubuntu 22.04+
-- Domínio apontando para o servidor
-- Chave da API OpenAI
+- Debian 12 (Bookworm) limpo
+- DNS dos domínios apontando para o servidor (SSL do Let's Encrypt depende disso)
+- Chave da API OpenAI (`sk-...`)
 
-### Instalação Automática (Servidor Novo)
+### Cenário 1 — Plataforma completa (tudo num servidor só)
+
+Instala API + Agent + Frontend + Postgres + Redis + **Evolution API** + MCPs + WireGuard + Traefik.
 
 ```bash
-# 1. Clone o repositório
-git clone https://github.com/SEU_USUARIO/agente_forum_telecom.git /opt/netagent
-cd /opt/netagent
-
-# 2. Use o instalador universal
-sudo bash installer/scripts/install.sh
+git clone https://github.com/clfigueiredo/netagente_oficial.git /var/www/agente_forum_telecom
+cd /var/www/agente_forum_telecom
+sudo bash install.sh
 ```
 
-O instalador configura automaticamente:
-- Docker + containers (PostgreSQL, Redis, Evolution, Traefik, WireGuard, MCPs)
-- Node.js 20 + PM2
-- Python 3.11 + venv
-- vsftpd (FTP para backups)
-- UFW (firewall)
-- SSL automático (Let's Encrypt)
+O script:
+- Pergunta domínio da plataforma, domínio da Evolution, e-mail SSL, e-mail do superadmin, chave OpenAI
+- Gera Postgres/Redis/JWT/Encryption/InternalAPI/EvolutionGlobal (chaves novas a cada run)
+- Instala Docker 29, Node 20 + PM2 + logrotate, Python 3.11, UFW (22/80/443/51820-udp), cron, fail2ban
+- Build do frontend (Vite), `npm install` da API, venv do Agent
+- Sobe 8 containers (`docker compose up -d --build`)
+- Aplica schema (plans, skills, `create_tenant_schema()`) + migrations
+- Cria banco `evolution` (Evolution v2 exige)
+- Cria superadmin inicial com senha aleatória
+- Inicia API + Agent no PM2 (com `pm2 startup systemd`)
+- Imprime URLs, chave Evolution e senha do superadmin
 
-### Instalação Manual
+### Cenário 2 — Plataforma SEM Evolution API
+
+Idêntico ao cenário 1, mas o container e o banco `evolution` não são criados. Use quando a Evolution vai rodar em um servidor separado (ou não vai rodar). Pré-requisito do WhatsApp/Agent fica inoperante.
 
 ```bash
-# 1. Clone e configure
-git clone https://github.com/SEU_USUARIO/agente_forum_telecom.git /opt/netagent
-cd /opt/netagent
-cp .env.example .env
-nano .env  # Preencha todos os valores
+git clone https://github.com/clfigueiredo/netagente_oficial.git /var/www/agente_forum_telecom
+cd /var/www/agente_forum_telecom
+sudo bash install-no-evolution.sh
+```
 
-# 2. Setup do servidor
-sudo bash server-setup.sh
+Pergunta apenas o domínio da plataforma + e-mail SSL + superadmin + chave OpenAI. No final imprime um guia de 5 passos pra reativar a Evolution depois.
 
-# 3. Deploy
-bash deploy.sh
+### Cenário 3 — Evolution API dedicada (servidor separado)
+
+Um servidor Debian 12 só pra rodar a Evolution API (Traefik + Postgres + evolution). Não depende do resto do repo — o script é self-contained e escreve o próprio `docker-compose.yml`.
+
+```bash
+# Num servidor limpo:
+curl -fsSL https://raw.githubusercontent.com/clfigueiredo/netagente_oficial/main/install-evolution-only.sh -o install-evolution-only.sh
+sudo bash install-evolution-only.sh
+```
+
+Pergunta domínio da Evolution + e-mail SSL + diretório de instalação (default `/opt/evolution-api`). Gera `POSTGRES_PASSWORD` e `EVOLUTION_GLOBAL_KEY` novos, imprime a chave no final. Depois é só apontar `EVOLUTION_BASE_URL` + `EVOLUTION_GLOBAL_KEY` no `.env` da plataforma principal.
+
+### Deploy incremental (servidor já instalado)
+
+Para atualizar código após `git pull` num servidor que já rodou o `install.sh`:
+
+```bash
+cd /var/www/agente_forum_telecom
+git pull
+bash deploy.sh           # reinstala deps, reaplica schema, reinicia PM2
+bash deploy-frontend.sh  # apenas rebuild do frontend
 ```
 
 ---
@@ -165,33 +188,37 @@ bash deploy.sh
 
 ### Variáveis de Ambiente
 
-Copie `.env.example` para `.env` e configure:
+Os scripts `install.sh` / `install-no-evolution.sh` / `install-evolution-only.sh` **geram** o `.env` automaticamente. As chaves abaixo são criadas com `openssl rand -hex 32` a cada instalação — você só precisa fornecer `OPENAI_KEY` (e apenas nos scripts da plataforma).
 
-| Variável | Descrição |
-|---|---|
-| `POSTGRES_PASSWORD` | Senha do PostgreSQL (gere com `openssl rand -hex 32`) |
-| `REDIS_PASSWORD` | Senha do Redis |
-| `JWT_SECRET` | Secret para tokens JWT |
-| `ENCRYPTION_KEY` | Chave para criptografia de credenciais de dispositivos |
-| `OPENAI_KEY` | Chave da API OpenAI |
-| `EVOLUTION_GLOBAL_KEY` | Chave da Evolution API |
-| `PUBLIC_URL` | URL pública da plataforma |
-| `DOMAIN_PLATFORM` | Domínio principal (usado no instalador) |
-| `DOMAIN_EVOLUTION` | Domínio da Evolution API |
+| Variável | Origem | Descrição |
+|---|---|---|
+| `POSTGRES_PASSWORD` | gerada | Senha do PostgreSQL |
+| `REDIS_PASSWORD` | gerada | Senha do Redis |
+| `JWT_SECRET` | gerada | Secret para tokens JWT |
+| `ENCRYPTION_KEY` | gerada | AES-256 para credenciais de dispositivos |
+| `INTERNAL_API_SECRET` | gerada | Auth Agent→API interno |
+| `EVOLUTION_GLOBAL_KEY` | gerada | Chave global da Evolution API |
+| `OPENAI_KEY` | **fornecida** | Chave da OpenAI (`sk-...`) — perguntada pelo script |
+| `PUBLIC_URL` | derivada | `https://${DOMAIN_PLATFORM}` |
+| `VITE_API_URL` / `VITE_WS_URL` | derivadas | Injetadas no build do frontend |
+
+O `.env.example` serve só como referência. Se você precisar regenerar um `.env` manualmente (ex.: restauração), use o template como base.
 
 ### Portas
 
-| Porta | Serviço |
-|---|---|
-| 80/443 | Traefik (HTTP/HTTPS) |
-| 4000 | API Node.js (host) |
-| 8000 | Agent Python (host) |
-| 8001 | MCP MikroTik (Docker) |
-| 8002 | MCP Linux (Docker) |
-| 5432 | PostgreSQL (localhost only) |
-| 6379 | Redis (localhost only) |
-| 2121 | FTP (vsftpd) |
-| 51820+ | WireGuard VPN (UDP) |
+| Porta | Serviço | Exposição |
+|---|---|---|
+| 80 / 443 | Traefik (HTTP/HTTPS) | Pública |
+| 51820/udp | WireGuard VPN | Pública (concentrador) |
+| 4000 | API Node.js (host, PM2) | loopback |
+| 8000 | Agent Python (host, PM2) | loopback |
+| 8001 | MCP MikroTik (Docker) | loopback |
+| 8002 | MCP Linux (Docker) | loopback |
+| 5432 | PostgreSQL | loopback |
+| 6379 | Redis | loopback |
+| 22 | SSH | Pública |
+
+O instalador configura UFW permitindo somente SSH + 80 + 443 + 51820/udp. Os demais serviços ficam em `127.0.0.1:*`.
 
 ---
 
