@@ -120,6 +120,26 @@ prompt_config() {
   read -rp "E-mail do superadmin inicial [${DEFAULT_ADMIN_EMAIL}]: " ADMIN_EMAIL
   ADMIN_EMAIL="$(echo -n "${ADMIN_EMAIL:-$DEFAULT_ADMIN_EMAIL}" | tr -d '[:space:]')"
 
+  # Slug do tenant inicial: default = subdomínio da esquerda, só [a-z0-9_].
+  # Isso se torna o nome do schema Postgres dedicado ao cliente.
+  local default_slug
+  default_slug=$(echo -n "${DOMAIN_PLATFORM%%.*}" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_')
+  [[ -z "$default_slug" ]] && default_slug="main"
+  while true; do
+    read -rp "Nome do tenant inicial (só letras/números/underscore) [${default_slug}]: " TENANT_SLUG
+    TENANT_SLUG="${TENANT_SLUG:-$default_slug}"
+    TENANT_SLUG=$(echo -n "$TENANT_SLUG" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_')
+    if [[ -z "$TENANT_SLUG" ]]; then
+      warn "Slug vazio. Use letras, números ou underscore."
+    elif [[ ! "$TENANT_SLUG" =~ ^[a-z] ]]; then
+      warn "Slug precisa começar com letra: ${TENANT_SLUG}"
+    else
+      break
+    fi
+  done
+  read -rp "Nome amigável do tenant (ex.: 'Forum Telecom') [${TENANT_SLUG}]: " TENANT_NAME
+  TENANT_NAME="${TENANT_NAME:-$TENANT_SLUG}"
+
   while true; do
     read -rsp "Chave OpenAI (sk-...): " OPENAI_KEY
     echo
@@ -134,6 +154,7 @@ prompt_config() {
   echo "  Evolution API : https://${DOMAIN_EVOLUTION}"
   echo "  E-mail SSL    : ${EMAIL_SSL}"
   echo "  Superadmin    : ${ADMIN_EMAIL}"
+  echo "  Tenant        : ${TENANT_NAME} (slug=${TENANT_SLUG})"
   echo "  OpenAI        : sk-****$(echo -n "${OPENAI_KEY}" | tail -c 4)"
   echo
   read -rp "Confirmar e iniciar? [s/N] " confirm
@@ -413,12 +434,12 @@ init_databases() {
   log "Migrations adicionais aplicadas."
 }
 
-# ── 14.5. Tenant padrão (necessário p/ o chat funcionar) ────────────────────
+# ── 14.5. Tenant inicial (necessário p/ o chat funcionar) ───────────────────
 # O auth.js pega o primeiro tenant ativo como "default context" do superadmin.
 # Sem nenhum tenant, o JWT vem com tenantSlug=undefined e /conversations gera
 # erro "relation undefined.conversations does not exist" — travando o chat.
 create_default_tenant() {
-  step "Tenant padrão"
+  step "Tenant inicial: ${TENANT_NAME} (${TENANT_SLUG})"
   local count
   count=$(docker exec netagent-postgres psql -U netagent -d netagent -tAc \
           "SELECT count(*) FROM public.tenants" 2>/dev/null || echo "0")
@@ -427,7 +448,7 @@ create_default_tenant() {
     return
   fi
   if [[ -z "${SUPERADMIN_PASSWORD:-}" ]]; then
-    warn "Superadmin preexistente — senha não disponível; pulando tenant padrão."
+    warn "Superadmin preexistente — senha não disponível; pulando tenant inicial."
     warn "Crie um tenant manualmente em /admin/tenants no superadmin."
     return
   fi
@@ -441,17 +462,34 @@ create_default_tenant() {
     require('bcrypt').hash(process.argv[1],12).then(h=>process.stdout.write(h));
   " "${SUPERADMIN_PASSWORD}")
 
-  docker exec -i netagent-postgres psql -U netagent -d netagent >/dev/null <<SQL
+  # TENANT_SLUG já foi sanitizado pra [a-z0-9_] no prompt — seguro interpolar.
+  # TENANT_NAME e ADMIN_EMAIL passam pelo psql via variável (:'...') que escapa
+  # automaticamente quotes/acentos.
+  docker exec -i \
+    -e PSQL_T_NAME="${TENANT_NAME}" \
+    -e PSQL_A_EMAIL="${ADMIN_EMAIL}" \
+    -e PSQL_A_HASH="${hash}" \
+    -e PSQL_P_ID="${plan_id}" \
+    netagent-postgres psql -U netagent -d netagent -v ON_ERROR_STOP=1 >/dev/null <<SQL
+\set t_name \`printf "%s" "\$PSQL_T_NAME"\`
+\set a_email \`printf "%s" "\$PSQL_A_EMAIL"\`
+\set a_hash \`printf "%s" "\$PSQL_A_HASH"\`
+\set p_id \`printf "%s" "\$PSQL_P_ID"\`
+
 INSERT INTO public.tenants (name, slug, admin_email, plan_id, active)
-VALUES ('Default', 'default', '${ADMIN_EMAIL}', '${plan_id}', true)
+VALUES (:'t_name', '${TENANT_SLUG}', :'a_email', :'p_id', true)
 ON CONFLICT (slug) DO NOTHING;
-SELECT public.create_tenant_schema('default');
-INSERT INTO "default".users (email, password_hash, name, role)
-VALUES ('${ADMIN_EMAIL}', '${hash}', 'Admin', 'admin')
-ON CONFLICT (email) DO NOTHING;
+
+SELECT public.create_tenant_schema('${TENANT_SLUG}');
+
+INSERT INTO "${TENANT_SLUG}".users (email, password_hash, name, role)
+SELECT :'a_email', :'a_hash', 'Admin', 'admin'
+WHERE NOT EXISTS (
+  SELECT 1 FROM "${TENANT_SLUG}".users WHERE email = :'a_email'
+);
 SQL
   DEFAULT_TENANT_CREATED=1
-  log "Tenant 'default' criado (admin=${ADMIN_EMAIL}, mesma senha do superadmin)."
+  log "Tenant '${TENANT_SLUG}' criado (admin=${ADMIN_EMAIL}, mesma senha do superadmin)."
 }
 
 # ── 14. Superadmin (apenas na primeira execução) ────────────────────────────

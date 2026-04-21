@@ -215,7 +215,7 @@ DECLARE
 BEGIN
   EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', slug);
   ddl := replace($TMPL$
-CREATE TABLE forumtelecom.automations (
+CREATE TABLE "forumtelecom".automations (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     name character varying(255) NOT NULL,
     skill_id uuid NOT NULL,
@@ -231,7 +231,7 @@ CREATE TABLE forumtelecom.automations (
 
 
 
-CREATE TABLE forumtelecom.conversations (
+CREATE TABLE "forumtelecom".conversations (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     channel character varying(20) DEFAULT 'web'::character varying,
     whatsapp_number character varying(20),
@@ -243,7 +243,7 @@ CREATE TABLE forumtelecom.conversations (
 
 
 
-CREATE TABLE forumtelecom.device_snapshots (
+CREATE TABLE "forumtelecom".device_snapshots (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     device_id uuid NOT NULL,
     captured_at timestamp with time zone DEFAULT now(),
@@ -258,7 +258,7 @@ CREATE TABLE forumtelecom.device_snapshots (
 
 
 
-CREATE TABLE forumtelecom.devices (
+CREATE TABLE "forumtelecom".devices (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     name character varying(100) NOT NULL,
     type character varying(50) NOT NULL,
@@ -276,7 +276,7 @@ CREATE TABLE forumtelecom.devices (
 
 
 
-CREATE TABLE forumtelecom.mcp_drivers (
+CREATE TABLE "forumtelecom".mcp_drivers (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     name character varying(100) NOT NULL,
     url character varying(500) NOT NULL,
@@ -295,7 +295,7 @@ CREATE TABLE forumtelecom.mcp_drivers (
 
 
 
-CREATE TABLE forumtelecom.messages (
+CREATE TABLE "forumtelecom".messages (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     conversation_id uuid NOT NULL,
     role character varying(20) NOT NULL,
@@ -311,7 +311,7 @@ CREATE TABLE forumtelecom.messages (
 
 
 
-CREATE TABLE forumtelecom.pending_actions (
+CREATE TABLE "forumtelecom".pending_actions (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     conversation_id uuid,
     device_id uuid,
@@ -328,7 +328,7 @@ CREATE TABLE forumtelecom.pending_actions (
 
 
 
-CREATE TABLE forumtelecom.settings (
+CREATE TABLE "forumtelecom".settings (
     key character varying(100) NOT NULL,
     value text NOT NULL,
     encrypted boolean DEFAULT false,
@@ -337,7 +337,7 @@ CREATE TABLE forumtelecom.settings (
 
 
 
-CREATE TABLE forumtelecom.tenant_memories (
+CREATE TABLE "forumtelecom".tenant_memories (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     conversation_id uuid,
     device_id uuid,
@@ -350,7 +350,7 @@ CREATE TABLE forumtelecom.tenant_memories (
 
 
 
-CREATE TABLE forumtelecom.users (
+CREATE TABLE "forumtelecom".users (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     email character varying(255) NOT NULL,
     password_hash text NOT NULL,
@@ -363,7 +363,7 @@ CREATE TABLE forumtelecom.users (
 
 
 
-CREATE TABLE forumtelecom.whatsapp_users (
+CREATE TABLE "forumtelecom".whatsapp_users (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     number character varying(20) NOT NULL,
     name character varying(255),
@@ -374,7 +374,7 @@ CREATE TABLE forumtelecom.whatsapp_users (
 
 
 
-CREATE TABLE forumtelecom.wireguard_interfaces (
+CREATE TABLE "forumtelecom".wireguard_interfaces (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     device_id uuid NOT NULL,
     name character varying(100) NOT NULL,
@@ -388,7 +388,7 @@ CREATE TABLE forumtelecom.wireguard_interfaces (
 
 
 
-CREATE TABLE forumtelecom.wireguard_peers (
+CREATE TABLE "forumtelecom".wireguard_peers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     interface_id uuid NOT NULL,
     name character varying(100) NOT NULL,
@@ -413,7 +413,7 @@ CREATE TABLE forumtelecom.wireguard_peers (
 
 
 
-CREATE TABLE forumtelecom.wireguard_pools (
+CREATE TABLE "forumtelecom".wireguard_pools (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     interface_id uuid NOT NULL,
     name character varying(100) NOT NULL,
@@ -424,7 +424,7 @@ CREATE TABLE forumtelecom.wireguard_pools (
 
 
 
-CREATE TABLE forumtelecom.wireguard_server_peers (
+CREATE TABLE "forumtelecom".wireguard_server_peers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     device_id uuid,
     name character varying(100) NOT NULL,
@@ -439,163 +439,163 @@ CREATE TABLE forumtelecom.wireguard_server_peers (
 
 
 
-ALTER TABLE ONLY forumtelecom.automations
+ALTER TABLE ONLY "forumtelecom".automations
     ADD CONSTRAINT automations_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.conversations
+ALTER TABLE ONLY "forumtelecom".conversations
     ADD CONSTRAINT conversations_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.device_snapshots
+ALTER TABLE ONLY "forumtelecom".device_snapshots
     ADD CONSTRAINT device_snapshots_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.devices
+ALTER TABLE ONLY "forumtelecom".devices
     ADD CONSTRAINT devices_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.mcp_drivers
+ALTER TABLE ONLY "forumtelecom".mcp_drivers
     ADD CONSTRAINT mcp_drivers_name_key UNIQUE (name);
 
 
 
-ALTER TABLE ONLY forumtelecom.mcp_drivers
+ALTER TABLE ONLY "forumtelecom".mcp_drivers
     ADD CONSTRAINT mcp_drivers_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.messages
+ALTER TABLE ONLY "forumtelecom".messages
     ADD CONSTRAINT messages_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.pending_actions
+ALTER TABLE ONLY "forumtelecom".pending_actions
     ADD CONSTRAINT pending_actions_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.settings
+ALTER TABLE ONLY "forumtelecom".settings
     ADD CONSTRAINT settings_pkey PRIMARY KEY (key);
 
 
 
-ALTER TABLE ONLY forumtelecom.tenant_memories
+ALTER TABLE ONLY "forumtelecom".tenant_memories
     ADD CONSTRAINT tenant_memories_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.users
+ALTER TABLE ONLY "forumtelecom".users
     ADD CONSTRAINT users_email_key UNIQUE (email);
 
 
 
-ALTER TABLE ONLY forumtelecom.users
+ALTER TABLE ONLY "forumtelecom".users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.whatsapp_users
+ALTER TABLE ONLY "forumtelecom".whatsapp_users
     ADD CONSTRAINT whatsapp_users_number_key UNIQUE (number);
 
 
 
-ALTER TABLE ONLY forumtelecom.whatsapp_users
+ALTER TABLE ONLY "forumtelecom".whatsapp_users
     ADD CONSTRAINT whatsapp_users_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_interfaces
+ALTER TABLE ONLY "forumtelecom".wireguard_interfaces
     ADD CONSTRAINT wireguard_interfaces_device_id_name_key UNIQUE (device_id, name);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_interfaces
+ALTER TABLE ONLY "forumtelecom".wireguard_interfaces
     ADD CONSTRAINT wireguard_interfaces_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_peers
+ALTER TABLE ONLY "forumtelecom".wireguard_peers
     ADD CONSTRAINT wireguard_peers_interface_id_name_key UNIQUE (interface_id, name);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_peers
+ALTER TABLE ONLY "forumtelecom".wireguard_peers
     ADD CONSTRAINT wireguard_peers_interface_id_public_key_key UNIQUE (interface_id, public_key);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_peers
+ALTER TABLE ONLY "forumtelecom".wireguard_peers
     ADD CONSTRAINT wireguard_peers_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_pools
+ALTER TABLE ONLY "forumtelecom".wireguard_pools
     ADD CONSTRAINT wireguard_pools_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_server_peers
+ALTER TABLE ONLY "forumtelecom".wireguard_server_peers
     ADD CONSTRAINT wireguard_server_peers_ip_address_key UNIQUE (ip_address);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_server_peers
+ALTER TABLE ONLY "forumtelecom".wireguard_server_peers
     ADD CONSTRAINT wireguard_server_peers_name_key UNIQUE (name);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_server_peers
+ALTER TABLE ONLY "forumtelecom".wireguard_server_peers
     ADD CONSTRAINT wireguard_server_peers_pkey PRIMARY KEY (id);
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_server_peers
+ALTER TABLE ONLY "forumtelecom".wireguard_server_peers
     ADD CONSTRAINT wireguard_server_peers_public_key_key UNIQUE (public_key);
 
 
 
-CREATE INDEX idx_ds_device_time ON forumtelecom.device_snapshots USING btree (device_id, captured_at DESC);
+CREATE INDEX idx_ds_device_time ON "forumtelecom".device_snapshots USING btree (device_id, captured_at DESC);
 
 
 
-ALTER TABLE ONLY forumtelecom.automations
+ALTER TABLE ONLY "forumtelecom".automations
     ADD CONSTRAINT automations_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES public.skills(id) ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY forumtelecom.tenant_memories
-    ADD CONSTRAINT tenant_memories_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES forumtelecom.conversations(id) ON DELETE SET NULL;
+ALTER TABLE ONLY "forumtelecom".tenant_memories
+    ADD CONSTRAINT tenant_memories_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES "forumtelecom".conversations(id) ON DELETE SET NULL;
 
 
 
-ALTER TABLE ONLY forumtelecom.tenant_memories
-    ADD CONSTRAINT tenant_memories_device_id_fkey FOREIGN KEY (device_id) REFERENCES forumtelecom.devices(id) ON DELETE CASCADE;
+ALTER TABLE ONLY "forumtelecom".tenant_memories
+    ADD CONSTRAINT tenant_memories_device_id_fkey FOREIGN KEY (device_id) REFERENCES "forumtelecom".devices(id) ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_interfaces
-    ADD CONSTRAINT wireguard_interfaces_device_id_fkey FOREIGN KEY (device_id) REFERENCES forumtelecom.devices(id) ON DELETE CASCADE;
+ALTER TABLE ONLY "forumtelecom".wireguard_interfaces
+    ADD CONSTRAINT wireguard_interfaces_device_id_fkey FOREIGN KEY (device_id) REFERENCES "forumtelecom".devices(id) ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_peers
-    ADD CONSTRAINT wireguard_peers_interface_id_fkey FOREIGN KEY (interface_id) REFERENCES forumtelecom.wireguard_interfaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY "forumtelecom".wireguard_peers
+    ADD CONSTRAINT wireguard_peers_interface_id_fkey FOREIGN KEY (interface_id) REFERENCES "forumtelecom".wireguard_interfaces(id) ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_pools
-    ADD CONSTRAINT wireguard_pools_interface_id_fkey FOREIGN KEY (interface_id) REFERENCES forumtelecom.wireguard_interfaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY "forumtelecom".wireguard_pools
+    ADD CONSTRAINT wireguard_pools_interface_id_fkey FOREIGN KEY (interface_id) REFERENCES "forumtelecom".wireguard_interfaces(id) ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY forumtelecom.wireguard_server_peers
-    ADD CONSTRAINT wireguard_server_peers_device_id_fkey FOREIGN KEY (device_id) REFERENCES forumtelecom.devices(id) ON DELETE CASCADE;
-$TMPL$, 'forumtelecom', slug);
+ALTER TABLE ONLY "forumtelecom".wireguard_server_peers
+    ADD CONSTRAINT wireguard_server_peers_device_id_fkey FOREIGN KEY (device_id) REFERENCES "forumtelecom".devices(id) ON DELETE CASCADE;
+$TMPL$, '"forumtelecom"', quote_ident(slug));
   EXECUTE ddl;
 
   -- Default settings (tenant-scoped)
