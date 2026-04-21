@@ -1,14 +1,12 @@
 # 🛰️ NetAgent Platform
 
-**Plataforma de Gerenciamento Inteligente de Redes para ISPs** — Agente de IA que monitora, diagnostica e gerencia dispositivos MikroTik e servidores Linux via chat conversacional e WhatsApp.
+**Plataforma de gerenciamento inteligente de redes para ISPs.** Agente de IA que monitora, diagnostica e gerencia MikroTiks e servidores Linux via chat web e WhatsApp.
 
 ---
 
 ## 📋 Visão Geral
 
-O NetAgent é uma plataforma multi-tenant SaaS que permite ISPs gerenciarem sua infraestrutura de rede usando um agente de IA especializado. O agente entende comandos em linguagem natural, executa diagnósticos via SSH, gerencia backups automáticos e envia alertas via WhatsApp.
-
-### Arquitetura
+Multi-tenant SaaS: cada cliente tem um schema dedicado em Postgres, isolamento por tenant em todas as rotas, agente Python com orquestrador de skills + RAG memory, MCPs dedicados para MikroTik e Linux, e WireGuard concentrador para acesso seguro às redes dos clientes.
 
 ```
 ┌─────────────┐   ┌──────────────┐   ┌──────────────────┐
@@ -20,10 +18,9 @@ O NetAgent é uma plataforma multi-tenant SaaS que permite ISPs gerenciarem sua 
               ▼          ▼                   ▼
         ┌──────────┐ ┌───────┐    ┌──────────────────┐
         │PostgreSQL│ │ Redis │    │   MCP Drivers    │
-        │+pgvector │ │  7    │    │ MikroTik + Linux │
+        │+pgvector │ │   7   │    │ MikroTik + Linux │
         └──────────┘ └───────┘    └──────────────────┘
-                                         │
-              ┌──────────────────────────┤
+              │                          │
               ▼                          ▼
         ┌───────────┐          ┌──────────────────┐
         │ WireGuard │          │  Evolution API   │
@@ -37,201 +34,215 @@ O NetAgent é uma plataforma multi-tenant SaaS que permite ISPs gerenciarem sua 
 
 | Componente | Tecnologia | Descrição |
 |---|---|---|
-| **Frontend** | React + Vite + Tailwind | Dashboard com chat, devices, backups, WireGuard, automações |
-| **API** | Node.js + Express + Prisma | REST API multi-tenant, WebSocket (Socket.io) |
-| **Agent** | Python + FastAPI + OpenAI | Agente IA com orquestrador de skills e RAG memory |
-| **MCP MikroTik** | Python (Docker) | Driver SSH para dispositivos MikroTik via RouterOS CLI |
-| **MCP Linux** | Python (Docker) | Driver SSH para servidores Linux |
-| **WireGuard** | Docker container | VPN concentrador para acesso seguro a redes dos clientes |
-| **Database** | PostgreSQL 16 + pgvector | Multi-schema (tenant isolation) + embeddings para RAG |
-| **Cache** | Redis 7 | Sessões, cache, filas |
-| **WhatsApp** | Evolution API v2 | Integração WhatsApp para alertas e chat com o agente |
-| **Proxy** | Traefik v3 | Reverse proxy com SSL automático (Let's Encrypt) |
+| Frontend | React + Vite + Tailwind | Dashboard: chat, devices, backups, WireGuard, automações |
+| API | Node.js 20 + Express + Prisma | REST API multi-tenant + WebSocket (Socket.io) |
+| Agent | Python 3.11 + FastAPI + OpenAI | Orquestrador de skills + RAG memory (pgvector) |
+| MCP MikroTik | Python (Docker) | Driver SSH para RouterOS |
+| MCP Linux | Python (Docker) | Driver SSH para servidores Linux |
+| WireGuard | Docker (host network) | VPN concentrador |
+| Database | PostgreSQL 16 + pgvector | Multi-schema (1 schema por tenant) |
+| Cache | Redis 7 | Sessões, filas |
+| WhatsApp | Evolution API v2 | Integração WhatsApp |
+| Proxy | Traefik v3 | SSL automático (Let's Encrypt) |
 
 ---
 
-## 📁 Estrutura de Diretórios
+## 📁 Estrutura do Repositório
 
 ```
 agente_forum_telecom/
-├── api/                    # Backend Node.js (Express)
-│   ├── prisma/             #   Schema Prisma (models públicos)
-│   ├── scripts/            #   SQL migrations & seeds
-│   └── src/
-│       ├── db/             #   init.sql (schema completo)
-│       ├── lib/            #   Utilitários
-│       ├── middleware/     #   Auth, tenant isolation
-│       ├── routes/         #   REST endpoints
-│       ├── services/       #   Encryption, tenant
-│       └── socket.js       #   WebSocket events
-│
-├── agent/                  # Agente Python (FastAPI)
-│   ├── agents/             #   Definições de especialistas (MD)
-│   ├── mcp/                #   MCP client (circuit breaker, bridge)
-│   ├── memory/             #   RAG memory (pgvector embeddings)
-│   ├── services/           #   Encryption
-│   ├── tools/              #   MikroTik, Linux, base tools
-│   ├── orchestrator.py     #   Orquestrador principal de skills
-│   ├── monitor.py          #   Monitor de dispositivos
-│   ├── scheduler.py        #   Agendador de tarefas
-│   └── whatsapp.py         #   Webhook WhatsApp
-│
-├── frontend/               # Frontend React (Vite)
-│   └── src/
-│       ├── components/     #   UI components
-│       ├── pages/          #   19 páginas (Dashboard, Chat, Devices, etc)
-│       ├── lib/            #   API client, socket
-│       └── store/          #   Auth store
-│
-├── mcp-mikrotik/           # MCP Driver MikroTik (Docker)
-├── mcp-linux/              # MCP Driver Linux (Docker)
-│
-├── docker/
-│   └── wireguard/          #   Dockerfile do WireGuard concentrador
-│
-├── traefik/                # Config do reverse proxy
-│   ├── certs/              #   Certificados SSL (auto-gerados)
-│   ├── config/             #   Rotas para serviços no host
-│   └── nginx-frontend.conf
-│
-├── data/                   # Runtime data (NÃO versionado)
-│   ├── postgres/
-│   ├── redis/
-│   ├── evolution/
-│   └── wireguard/
-│
-├── docs/                   # Documentação
-│
-├── docker-compose.yml           # Orquestração de todos os containers
+├── api/                         # Backend Node.js
+│   └── src/db/init.sql          # Schema + seeds (gerado via pg_dump da produção)
+├── agent/                       # Agent Python
+├── frontend/                    # Frontend React
+├── mcp-mikrotik/                # MCP MikroTik (Docker build)
+├── mcp-linux/                   # MCP Linux (Docker build)
+├── docker/wireguard/            # Dockerfile do WireGuard
+├── traefik/                     # Reverse proxy + SSL
+├── docs/                        # Documentação detalhada
+├── docker-compose.yml           # Stack completa
 ├── install.sh                   # Instalador completo (plataforma + Evolution)
 ├── install-no-evolution.sh      # Plataforma sem Evolution API
-├── install-evolution-only.sh    # Evolution API em servidor dedicado
-├── deploy.sh                    # Deploy incremental (produção)
-├── deploy-frontend.sh           # Build + redeploy do frontend
-└── .env.example                 # Template de variáveis de ambiente
+├── install-evolution-only.sh    # Evolution API dedicada (servidor separado)
+├── deploy.sh                    # Deploy incremental pós-git-pull
+├── deploy-frontend.sh           # Rebuild + redeploy do frontend
+└── .env.example                 # Template de variáveis (referência)
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Instalação
 
 ### Pré-requisitos
-- Debian 12 (Bookworm) limpo
-- DNS dos domínios apontando para o servidor (SSL do Let's Encrypt depende disso)
-- Chave da API OpenAI (`sk-...`)
 
-### Cenário 1 — Plataforma completa (tudo num servidor só)
+1. **Servidor** — Debian 12 (Bookworm) com acesso root e IP público.
+2. **Recursos mínimos** — 2 vCPU, 4 GB RAM, 50 GB disco (8 GB RAM recomendado para produção).
+3. **DNS** — Registros A/AAAA apontando para o IP do servidor. Para `install.sh` você precisa de 2 domínios (ex.: `agente.seucliente.com.br` e `agenteevo.seucliente.com.br`). Para `install-no-evolution.sh` só 1 domínio. Let's Encrypt só emite cert se o DNS já estiver propagado.
+4. **Chave OpenAI** — formato `sk-...`, pedida no prompt do installer (exceto em `install-evolution-only.sh`).
 
-Instala API + Agent + Frontend + Postgres + Redis + **Evolution API** + MCPs + WireGuard + Traefik.
+---
+
+### Cenário 1 — Plataforma completa (recomendado para cliente único)
+
+Instala **tudo num único servidor**: API, Agent, Frontend, Postgres, Redis, Evolution API, MCPs, WireGuard, Traefik.
 
 ```bash
+# 1. Conectar no servidor como root
+ssh root@SEU_IP_DO_SERVIDOR
+
+# 2. Instalar git
+apt-get update && apt-get install -y git
+
+# 3. Clonar o repositório no caminho padrão
 git clone https://github.com/clfigueiredo/netagente_oficial.git /var/www/agente_forum_telecom
+
+# 4. Entrar na pasta e rodar o instalador
 cd /var/www/agente_forum_telecom
-sudo bash install.sh
+bash install.sh
 ```
 
-O script:
-- Pergunta domínio da plataforma, domínio da Evolution, e-mail SSL, e-mail do superadmin, chave OpenAI
-- Gera Postgres/Redis/JWT/Encryption/InternalAPI/EvolutionGlobal (chaves novas a cada run)
-- Instala Docker 29, Node 20 + PM2 + logrotate, Python 3.11, UFW (22/80/443/51820-udp), cron, fail2ban
-- Build do frontend (Vite), `npm install` da API, venv do Agent
-- Sobe 8 containers (`docker compose up -d --build`)
-- Aplica schema (plans, skills, `create_tenant_schema()`) + migrations
-- Cria banco `evolution` (Evolution v2 exige)
-- Cria superadmin inicial com senha aleatória
-- Inicia API + Agent no PM2 (com `pm2 startup systemd`)
-- Imprime URLs, chave Evolution e senha do superadmin
+> **Repositório privado?** Use HTTPS com Personal Access Token do GitHub:
+> ```bash
+> git clone https://SEU_USUARIO:SEU_TOKEN@github.com/clfigueiredo/netagente_oficial.git /var/www/agente_forum_telecom
+> ```
+> Ou SSH se a chave já estiver configurada no GitHub:
+> ```bash
+> git clone git@github.com:clfigueiredo/netagente_oficial.git /var/www/agente_forum_telecom
+> ```
+
+O `install.sh` vai perguntar:
+- Domínio da Plataforma (ex.: `agente.seucliente.com.br`)
+- Domínio da Evolution API (ex.: `agenteevo.seucliente.com.br`)
+- E-mail para Let's Encrypt
+- E-mail do superadmin
+- Chave OpenAI (`sk-...`)
+
+E em seguida executa automaticamente:
+1. `apt install` pacotes base (curl, jq, openssl, ufw, fail2ban, cron, build-essential, postgresql-client-15)
+2. Docker CE + Compose plugin
+3. Node.js 20 + PM2 + `pm2-logrotate`
+4. Python 3.11 + venv
+5. UFW (22 / 80 / 443 / 51820-udp + docker bridge liberada)
+6. Gera `.env` com chaves novas (Postgres, Redis, JWT, Encryption, Internal, Evolution) — só OpenAI vem do prompt
+7. `sed` do `docker-compose.yml` (substitui domínios + detecta GID do grupo docker para o Traefik)
+8. Build do frontend (Vite) com `VITE_API_URL` correto
+9. `npm install` da API + `pip install` do Agent
+10. `docker compose up -d --build` (8 containers)
+11. Aguarda Postgres, cria banco `evolution`, aplica `api/src/db/init.sql` (gerado via `pg_dump` da produção — estrutura + seeds de plans/skills/knowledge_base)
+12. Cria **superadmin** (email = o que você informou, senha random de 16 chars mostrada no final)
+13. Cria **tenant `default`** com o mesmo email/senha (pra o chat funcionar de cara)
+14. Inicia PM2 (`netagent-api` + `netagent-agent`) com `pm2 startup systemd`
+15. Health checks + resumo final com URLs e credenciais
+
+**Ao terminar**, o instalador imprime as credenciais. Anote — a senha não é reexibida. Acesse `https://SEU_DOMINIO_PLATAFORMA` e logue.
+
+---
 
 ### Cenário 2 — Plataforma SEM Evolution API
 
-Idêntico ao cenário 1, mas o container e o banco `evolution` não são criados. Use quando a Evolution vai rodar em um servidor separado (ou não vai rodar). Pré-requisito do WhatsApp/Agent fica inoperante.
+Idêntico ao cenário 1, mas o container da Evolution não é criado e nenhum banco `evolution` é provisionado. Use quando a Evolution vai rodar em um servidor separado (cenário 3) ou quando o WhatsApp não é necessário.
 
 ```bash
+ssh root@SEU_IP_DO_SERVIDOR
+apt-get update && apt-get install -y git
 git clone https://github.com/clfigueiredo/netagente_oficial.git /var/www/agente_forum_telecom
 cd /var/www/agente_forum_telecom
-sudo bash install-no-evolution.sh
+bash install-no-evolution.sh
 ```
 
-Pergunta apenas o domínio da plataforma + e-mail SSL + superadmin + chave OpenAI. No final imprime um guia de 5 passos pra reativar a Evolution depois.
+O prompt pede apenas: domínio da plataforma, e-mail SSL, e-mail do superadmin, chave OpenAI. No resumo final tem um guia de 5 passos para reativar a Evolution quando quiser.
 
-### Cenário 3 — Evolution API dedicada (servidor separado)
+---
 
-Um servidor Debian 12 só pra rodar a Evolution API (Traefik + Postgres + evolution). Não depende do resto do repo — o script é self-contained e escreve o próprio `docker-compose.yml`.
+### Cenário 3 — Evolution API em servidor dedicado
+
+Script **self-contained** — não depende do resto do repo, escreve o próprio `docker-compose.yml`.
 
 ```bash
-# Num servidor limpo:
+ssh root@SEU_IP_DO_SERVIDOR_EVOLUTION
+apt-get update && apt-get install -y curl
 curl -fsSL https://raw.githubusercontent.com/clfigueiredo/netagente_oficial/main/install-evolution-only.sh -o install-evolution-only.sh
-sudo bash install-evolution-only.sh
+bash install-evolution-only.sh
 ```
 
-Pergunta domínio da Evolution + e-mail SSL + diretório de instalação (default `/opt/evolution-api`). Gera `POSTGRES_PASSWORD` e `EVOLUTION_GLOBAL_KEY` novos, imprime a chave no final. Depois é só apontar `EVOLUTION_BASE_URL` + `EVOLUTION_GLOBAL_KEY` no `.env` da plataforma principal.
+> Se o repo for privado, clone com git (como no cenário 1) e rode o script da raiz do repo.
 
-### Deploy incremental (servidor já instalado)
+O prompt pede: domínio da Evolution (ex.: `evo.seucliente.com.br`), e-mail SSL, diretório de instalação (default `/opt/evolution-api`).
 
-Para atualizar código após `git pull` num servidor que já rodou o `install.sh`:
+Sobe 3 containers: `traefik` (SSL), `evolution-postgres` (banco dedicado, usuário `evolution`), `evolution-api` v2.3.4. No final imprime a `EVOLUTION_GLOBAL_KEY` gerada — use no `.env` da plataforma principal em `EVOLUTION_GLOBAL_KEY` e `EVOLUTION_BASE_URL`.
+
+---
+
+## 🔄 Atualizações em servidores já instalados
+
+Não rode `install.sh` duas vezes — ele regenera o `.env` (chaves novas) e quebra a instalação existente. Para atualizar código após mudanças:
 
 ```bash
 cd /var/www/agente_forum_telecom
 git pull
-bash deploy.sh           # reinstala deps, reaplica schema, reinicia PM2
-bash deploy-frontend.sh  # apenas rebuild do frontend
+bash deploy.sh              # reinstala deps da API/Agent/Frontend + reaplica init.sql + reinicia PM2
+# ou apenas:
+bash deploy-frontend.sh     # rebuild + redeploy só do frontend
 ```
+
+O `init.sql` novo é idempotente: `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `ON CONFLICT DO NOTHING`. `deploy.sh` pode ser executado várias vezes sem risco de corromper dados.
 
 ---
 
-## ⚙️ Configuração
+## ⚙️ Variáveis de Ambiente
 
-### Variáveis de Ambiente
-
-Os scripts `install.sh` / `install-no-evolution.sh` / `install-evolution-only.sh` **geram** o `.env` automaticamente. As chaves abaixo são criadas com `openssl rand -hex 32` a cada instalação — você só precisa fornecer `OPENAI_KEY` (e apenas nos scripts da plataforma).
+Os instaladores geram `.env` automaticamente. Você só informa `OPENAI_KEY` no prompt.
 
 | Variável | Origem | Descrição |
 |---|---|---|
 | `POSTGRES_PASSWORD` | gerada | Senha do PostgreSQL |
 | `REDIS_PASSWORD` | gerada | Senha do Redis |
 | `JWT_SECRET` | gerada | Secret para tokens JWT |
-| `ENCRYPTION_KEY` | gerada | AES-256 para credenciais de dispositivos |
-| `INTERNAL_API_SECRET` | gerada | Auth Agent→API interno |
-| `EVOLUTION_GLOBAL_KEY` | gerada | Chave global da Evolution API |
-| `OPENAI_KEY` | **fornecida** | Chave da OpenAI (`sk-...`) — perguntada pelo script |
+| `ENCRYPTION_KEY` | gerada | AES-256 de credenciais de dispositivos |
+| `INTERNAL_API_SECRET` | gerada | Auth Agent → API interno |
+| `EVOLUTION_GLOBAL_KEY` | gerada | Header `apikey` da Evolution |
+| `OPENAI_KEY` | **você fornece** | Chave OpenAI (`sk-...`) |
 | `PUBLIC_URL` | derivada | `https://${DOMAIN_PLATFORM}` |
 | `VITE_API_URL` / `VITE_WS_URL` | derivadas | Injetadas no build do frontend |
 
-O `.env.example` serve só como referência. Se você precisar regenerar um `.env` manualmente (ex.: restauração), use o template como base.
+O `.env.example` é apenas referência — serve caso precise regenerar um `.env` manualmente.
 
-### Portas
+---
+
+## 🔌 Portas
 
 | Porta | Serviço | Exposição |
 |---|---|---|
+| 22 | SSH | Pública |
 | 80 / 443 | Traefik (HTTP/HTTPS) | Pública |
-| 51820/udp | WireGuard VPN | Pública (concentrador) |
+| 51820/udp | WireGuard VPN | Pública |
 | 4000 | API Node.js (host, PM2) | loopback |
 | 8000 | Agent Python (host, PM2) | loopback |
 | 8001 | MCP MikroTik (Docker) | loopback |
 | 8002 | MCP Linux (Docker) | loopback |
 | 5432 | PostgreSQL | loopback |
 | 6379 | Redis | loopback |
-| 22 | SSH | Pública |
 
-O instalador configura UFW permitindo somente SSH + 80 + 443 + 51820/udp. Os demais serviços ficam em `127.0.0.1:*`.
+UFW: somente 22 / 80 / 443 / 51820-udp abertas + regra de liberação da bridge `docker0` (para o nginx-frontend conversar com API/Agent no host).
 
 ---
 
-## 🔧 Desenvolvimento
+## 🧪 Desenvolvimento local
 
 ```bash
 # API
 cd api && npm install && npm run dev
 
 # Agent
-cd agent && python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+cd agent
+python3.11 -m venv venv
+./venv/bin/pip install -r requirements.txt
+./venv/bin/uvicorn main:app --reload --port 8000
 
 # Frontend
-cd frontend && pnpm install && pnpm dev
+cd frontend && npm install && npm run dev
 
-# Docker services
+# Infra mínima para subir só o banco/cache
 docker compose up -d postgres redis
 ```
 
@@ -239,13 +250,51 @@ docker compose up -d postgres redis
 
 ## 🛡️ Segurança
 
-- Multi-tenant isolation via PostgreSQL schemas
-- Credenciais de dispositivos criptografadas (AES-256)
-- JWT authentication com bcrypt
-- WireGuard VPN para acesso seguro
-- UFW firewall configurado
-- SSL automático via Let's Encrypt
-- Banco e Redis apenas em localhost
+- Multi-tenant via schemas Postgres isolados (criados por `public.create_tenant_schema(slug)`).
+- Credenciais de dispositivos criptografadas em repouso (AES-256 com `ENCRYPTION_KEY`).
+- Senhas de usuário em bcrypt cost 12.
+- JWT expira em 8h; `/auth/refresh` emite novo token.
+- WireGuard VPN para acesso às redes dos clientes.
+- SSL automático (Let's Encrypt via Traefik).
+- Postgres/Redis/API/Agent em `127.0.0.1` — somente Traefik (80/443), SSH e WireGuard expostos publicamente.
+
+---
+
+## 🩹 Troubleshooting
+
+**Frontend abre mas login dá "credenciais inválidas"**
+Teste direto contra a API:
+```bash
+curl -X POST http://127.0.0.1:4000/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"admin@seudominio.com.br","password":"SUA_SENHA"}'
+```
+Se aqui retorna `200` com token, o problema é o caminho HTTPS → container → host. Confira se a UFW liberou a bridge docker0:
+```bash
+ufw status | grep docker0
+# Se ausente:
+ufw allow in on docker0 to any
+ufw allow from 172.16.0.0/12
+ufw reload
+```
+
+**Let's Encrypt não emite certificado**
+```bash
+docker logs traefik 2>&1 | grep -i "acme\|error" | tail -20
+```
+Causas comuns: DNS ainda não propagou, porta 80 fechada no firewall do provedor, domínio com `/` no final (sanitizado no `install.sh` atual — reinstale se usou versão antiga).
+
+**Chat com input desabilitado**
+Verifique se existe pelo menos um tenant ativo:
+```bash
+docker exec netagent-postgres psql -U netagent -d netagent -tAc "SELECT count(*) FROM public.tenants"
+```
+Se der `0`, o `install.sh` falhou em criar o tenant `default`. Reinstale ou crie manualmente pela rota `/admin/tenants`.
+
+**Erro de coluna em `<tenant>.messages`**
+`init.sql` atual é gerado do `pg_dump` de produção e tem todas as colunas. Se estiver em servidor antigo com schema stale:
+```bash
+bash deploy.sh   # reaplica init.sql com migrations de retro-compat
+```
 
 ---
 
