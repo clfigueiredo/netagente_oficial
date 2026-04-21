@@ -198,7 +198,7 @@ install_python() {
 
 # ── 5. Firewall ─────────────────────────────────────────────────────────────
 setup_firewall() {
-  step "UFW (apenas SSH/HTTP/HTTPS/WireGuard)"
+  step "UFW (apenas SSH/HTTP/HTTPS/WireGuard + docker bridge)"
   ufw --force reset >/dev/null
   ufw default deny incoming >/dev/null
   ufw default allow outgoing >/dev/null
@@ -206,8 +206,12 @@ setup_firewall() {
   ufw allow 80/tcp  comment 'HTTP (Traefik)'  >/dev/null
   ufw allow 443/tcp comment 'HTTPS (Traefik)' >/dev/null
   ufw allow 51820/udp comment 'WireGuard'     >/dev/null
+  # Sem essas duas regras a UFW bloqueia tráfego da bridge docker0 → host,
+  # e o nginx-frontend retorna 504 ao proxy-passar /api e /socket.io.
+  ufw allow in on docker0 to any         comment 'docker bridge -> host' >/dev/null
+  ufw allow from 172.16.0.0/12           comment 'docker networks'       >/dev/null
   ufw --force enable >/dev/null
-  log "UFW ativo. API(4000)/Agent(8000)/Redis(6379) continuam em loopback (bind 127.0.0.1)."
+  log "UFW ativo. API(4000)/Agent(8000)/Redis(6379) em loopback; docker0 liberado."
 }
 
 # ── 6. Diretórios de dados + acme.json ───────────────────────────────────────
