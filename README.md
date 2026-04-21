@@ -101,20 +101,13 @@ cd /var/www/agente_forum_telecom
 bash install.sh
 ```
 
-> **Repositório privado?** Use HTTPS com Personal Access Token do GitHub:
-> ```bash
-> git clone https://SEU_USUARIO:SEU_TOKEN@github.com/clfigueiredo/netagente_oficial.git /var/www/agente_forum_telecom
-> ```
-> Ou SSH se a chave já estiver configurada no GitHub:
-> ```bash
-> git clone git@github.com:clfigueiredo/netagente_oficial.git /var/www/agente_forum_telecom
-> ```
-
 O `install.sh` vai perguntar:
 - Domínio da Plataforma (ex.: `agente.seucliente.com.br`)
 - Domínio da Evolution API (ex.: `agenteevo.seucliente.com.br`)
 - E-mail para Let's Encrypt
 - E-mail do superadmin
+- **Slug do tenant inicial** (default: subdomínio da plataforma, ex.: `agente`)
+- **Nome amigável do tenant** (ex.: `Forum Telecom`)
 - Chave OpenAI (`sk-...`)
 
 E em seguida executa automaticamente:
@@ -130,7 +123,7 @@ E em seguida executa automaticamente:
 10. `docker compose up -d --build` (8 containers)
 11. Aguarda Postgres, cria banco `evolution`, aplica `api/src/db/init.sql` (gerado via `pg_dump` da produção — estrutura + seeds de plans/skills/knowledge_base)
 12. Cria **superadmin** (email = o que você informou, senha random de 16 chars mostrada no final)
-13. Cria **tenant `default`** com o mesmo email/senha (pra o chat funcionar de cara)
+13. Cria o **tenant inicial** (schema próprio no Postgres com 15 tabelas + admin do tenant com a mesma senha do superadmin)
 14. Inicia PM2 (`netagent-api` + `netagent-agent`) com `pm2 startup systemd`
 15. Health checks + resumo final com URLs e credenciais
 
@@ -150,7 +143,7 @@ cd /var/www/agente_forum_telecom
 bash install-no-evolution.sh
 ```
 
-O prompt pede apenas: domínio da plataforma, e-mail SSL, e-mail do superadmin, chave OpenAI. No resumo final tem um guia de 5 passos para reativar a Evolution quando quiser.
+O prompt pede os mesmos dados do cenário 1, sem o domínio da Evolution. No resumo final tem um guia de 5 passos para reativar a Evolution quando quiser.
 
 ---
 
@@ -160,12 +153,11 @@ Script **self-contained** — não depende do resto do repo, escreve o próprio 
 
 ```bash
 ssh root@SEU_IP_DO_SERVIDOR_EVOLUTION
-apt-get update && apt-get install -y curl
-curl -fsSL https://raw.githubusercontent.com/clfigueiredo/netagente_oficial/main/install-evolution-only.sh -o install-evolution-only.sh
+apt-get update && apt-get install -y git
+git clone https://github.com/clfigueiredo/netagente_oficial.git /opt/netagent-src
+cd /opt/netagent-src
 bash install-evolution-only.sh
 ```
-
-> Se o repo for privado, clone com git (como no cenário 1) e rode o script da raiz do repo.
 
 O prompt pede: domínio da Evolution (ex.: `evo.seucliente.com.br`), e-mail SSL, diretório de instalação (default `/opt/evolution-api`).
 
@@ -175,7 +167,7 @@ Sobe 3 containers: `traefik` (SSL), `evolution-postgres` (banco dedicado, usuár
 
 ## 🔄 Atualizações em servidores já instalados
 
-Não rode `install.sh` duas vezes — ele regenera o `.env` (chaves novas) e quebra a instalação existente. Para atualizar código após mudanças:
+**Nunca rode `install.sh` duas vezes no mesmo servidor** — ele regenera o `.env` com senhas novas enquanto os volumes Postgres/Redis ainda têm as senhas antigas, e a stack quebra. Pra atualizar código:
 
 ```bash
 cd /var/www/agente_forum_telecom
@@ -185,7 +177,15 @@ bash deploy.sh              # reinstala deps da API/Agent/Frontend + reaplica in
 bash deploy-frontend.sh     # rebuild + redeploy só do frontend
 ```
 
-O `init.sql` novo é idempotente: `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `ON CONFLICT DO NOTHING`. `deploy.sh` pode ser executado várias vezes sem risco de corromper dados.
+O `init.sql` é idempotente: `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `ON CONFLICT DO NOTHING`. `deploy.sh` pode rodar várias vezes sem corromper dados.
+
+**Se precisar reinstalar do zero no mesmo servidor:**
+```bash
+cd /var/www/agente_forum_telecom && docker compose down -v
+pm2 delete netagent-api netagent-agent 2>/dev/null
+rm -rf /var/www/agente_forum_telecom
+# agora pode clonar de novo e rodar install.sh
+```
 
 ---
 
@@ -284,17 +284,19 @@ docker logs traefik 2>&1 | grep -i "acme\|error" | tail -20
 Causas comuns: DNS ainda não propagou, porta 80 fechada no firewall do provedor, domínio com `/` no final (sanitizado no `install.sh` atual — reinstale se usou versão antiga).
 
 **Chat com input desabilitado**
-Verifique se existe pelo menos um tenant ativo:
+Verifique se existe um tenant ativo com schema criado:
 ```bash
-docker exec netagent-postgres psql -U netagent -d netagent -tAc "SELECT count(*) FROM public.tenants"
+docker exec netagent-postgres psql -U netagent -d netagent -tAc \
+  "SELECT t.slug, (SELECT count(*) FROM information_schema.schemata WHERE schema_name=t.slug) AS schema_exists FROM public.tenants t"
 ```
-Se der `0`, o `install.sh` falhou em criar o tenant `default`. Reinstale ou crie manualmente pela rota `/admin/tenants`.
+Cada linha deve ter `schema_exists = 1`. Se o schema não foi criado (`0`), o tenant está quebrado — rode manualmente:
+```bash
+docker exec -i netagent-postgres psql -U netagent -d netagent -c "SELECT public.create_tenant_schema('SLUG_DO_TENANT')"
+```
+Depois faça logout/login no frontend pra o JWT pegar o tenant novo.
 
-**Erro de coluna em `<tenant>.messages`**
-`init.sql` atual é gerado do `pg_dump` de produção e tem todas as colunas. Se estiver em servidor antigo com schema stale:
-```bash
-bash deploy.sh   # reaplica init.sql com migrations de retro-compat
-```
+**Erro de coluna em tabela de tenant**
+O `init.sql` é gerado do `pg_dump` da produção — novos tenants têm o schema completo. Se for servidor antigo com schema stale, rode `bash deploy.sh` que reaplica o `init.sql` com as migrations de retro-compat.
 
 ---
 
