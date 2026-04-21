@@ -413,6 +413,47 @@ init_databases() {
   log "Migrations adicionais aplicadas."
 }
 
+# ── 14.5. Tenant padrão (necessário p/ o chat funcionar) ────────────────────
+# O auth.js pega o primeiro tenant ativo como "default context" do superadmin.
+# Sem nenhum tenant, o JWT vem com tenantSlug=undefined e /conversations gera
+# erro "relation undefined.conversations does not exist" — travando o chat.
+create_default_tenant() {
+  step "Tenant padrão"
+  local count
+  count=$(docker exec netagent-postgres psql -U netagent -d netagent -tAc \
+          "SELECT count(*) FROM public.tenants" 2>/dev/null || echo "0")
+  if [[ "${count}" != "0" ]]; then
+    log "Já existem tenants (${count}). Mantendo."
+    return
+  fi
+  if [[ -z "${SUPERADMIN_PASSWORD:-}" ]]; then
+    warn "Superadmin preexistente — senha não disponível; pulando tenant padrão."
+    warn "Crie um tenant manualmente em /admin/tenants no superadmin."
+    return
+  fi
+
+  local plan_id hash
+  plan_id=$(docker exec netagent-postgres psql -U netagent -d netagent -tAc \
+            "SELECT id FROM public.plans WHERE name='Starter' LIMIT 1")
+  [[ -n "${plan_id}" ]] || { warn "plano Starter ausente — pulando tenant."; return; }
+
+  hash=$(cd "${PROJECT_DIR}/api" && node -e "
+    require('bcrypt').hash(process.argv[1],12).then(h=>process.stdout.write(h));
+  " "${SUPERADMIN_PASSWORD}")
+
+  docker exec -i netagent-postgres psql -U netagent -d netagent >/dev/null <<SQL
+INSERT INTO public.tenants (name, slug, admin_email, plan_id, active)
+VALUES ('Default', 'default', '${ADMIN_EMAIL}', '${plan_id}', true)
+ON CONFLICT (slug) DO NOTHING;
+SELECT public.create_tenant_schema('default');
+INSERT INTO "default".users (email, password_hash, name, role)
+VALUES ('${ADMIN_EMAIL}', '${hash}', 'Admin', 'admin')
+ON CONFLICT (email) DO NOTHING;
+SQL
+  DEFAULT_TENANT_CREATED=1
+  log "Tenant 'default' criado (admin=${ADMIN_EMAIL}, mesma senha do superadmin)."
+}
+
 # ── 14. Superadmin (apenas na primeira execução) ────────────────────────────
 create_superadmin() {
   step "Superadmin"
@@ -531,9 +572,12 @@ print_summary() {
   echo "  OPENAI_KEY           : sk-****$(grep ^OPENAI_KEY "${PROJECT_DIR}/.env" | cut -d= -f2 | tail -c 5)"
   echo
   if [[ -n "${SUPERADMIN_PASSWORD:-}" ]]; then
-    echo -e "${BOLD}${YELLOW}Credenciais do Superadmin (anote agora — não serão reexibidas):${NC}"
+    echo -e "${BOLD}${YELLOW}Credenciais iniciais (anote agora — não serão reexibidas):${NC}"
     echo "  Email : ${ADMIN_EMAIL}"
     echo "  Senha : ${SUPERADMIN_PASSWORD}"
+    if [[ -n "${DEFAULT_TENANT_CREATED:-}" ]]; then
+      echo "  Contexto: superadmin + admin do tenant 'default' (mesma senha)."
+    fi
     echo
   fi
   echo -e "${BOLD}Operação:${NC}"
@@ -574,6 +618,7 @@ main() {
   wait_postgres
   init_databases
   create_superadmin
+  create_default_tenant
   start_pm2
   verify || warn "Alguns checks falharam — inspecione logs acima."
   print_summary
