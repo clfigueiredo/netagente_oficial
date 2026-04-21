@@ -89,10 +89,6 @@ agente_forum_telecom/
 ├── docker/
 │   └── wireguard/          #   Dockerfile do WireGuard concentrador
 │
-├── installer/              # Pacote de instalação legado
-│   ├── build.sh            #   Geração de tarball distribuível
-│   └── scripts/install.sh  #   Instalador antigo (DEPRECATED — usar scripts da raiz)
-│
 ├── traefik/                # Config do reverse proxy
 │   ├── certs/              #   Certificados SSL (auto-gerados)
 │   ├── config/             #   Rotas para serviços no host
@@ -107,12 +103,11 @@ agente_forum_telecom/
 ├── docs/                   # Documentação
 │
 ├── docker-compose.yml           # Orquestração de todos os containers
-├── install.sh                   # ✅ Instalador completo (plataforma + Evolution)
-├── install-no-evolution.sh      # ✅ Plataforma sem Evolution API
-├── install-evolution-only.sh    # ✅ Evolution API em servidor dedicado
+├── install.sh                   # Instalador completo (plataforma + Evolution)
+├── install-no-evolution.sh      # Plataforma sem Evolution API
+├── install-evolution-only.sh    # Evolution API em servidor dedicado
 ├── deploy.sh                    # Deploy incremental (produção)
 ├── deploy-frontend.sh           # Build + redeploy do frontend
-├── server-setup.sh              # (legado) apenas infra Docker
 └── .env.example                 # Template de variáveis de ambiente
 ```
 
@@ -238,15 +233,6 @@ cd frontend && pnpm install && pnpm dev
 
 # Docker services
 docker compose up -d postgres redis
-```
-
----
-
-## 📦 Gerar Pacote de Instalação
-
-```bash
-bash installer/build.sh
-# Gera: netagent-installer.tar.gz
 ```
 
 ---
