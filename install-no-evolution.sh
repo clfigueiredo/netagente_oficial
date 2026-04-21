@@ -586,6 +586,10 @@ print_summary() {
   echo "  Agent      : https://${DOMAIN_PLATFORM}/agent/"
   echo "  Evolution  : (desativada nesta instalação)"
   echo
+  echo -e "${BOLD}${CYAN}Webhook da Evolution API (quando reativar ou em servidor separado):${NC}"
+  echo "  URL    : https://${DOMAIN_PLATFORM}/webhook"
+  echo "  Eventos: MESSAGES_UPSERT, CONNECTION_UPDATE, QRCODE_UPDATED"
+  echo
   echo -e "${BOLD}Chaves importantes (${PROJECT_DIR}/.env):${NC}"
   echo "  OPENAI_KEY : sk-****$(grep ^OPENAI_KEY "${PROJECT_DIR}/.env" | cut -d= -f2 | tail -c 5)"
   echo
@@ -594,7 +598,7 @@ print_summary() {
     echo "  Email : ${ADMIN_EMAIL}"
     echo "  Senha : ${SUPERADMIN_PASSWORD}"
     if [[ -n "${DEFAULT_TENANT_CREATED:-}" ]]; then
-      echo "  Contexto: superadmin + admin do tenant 'default' (mesma senha)."
+      echo "  Tenant: ${TENANT_NAME} (slug=${TENANT_SLUG}) — mesma senha do superadmin"
     fi
     echo
   fi

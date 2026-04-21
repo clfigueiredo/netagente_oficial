@@ -605,6 +605,15 @@ print_summary() {
   echo "  Agent      : https://${DOMAIN_PLATFORM}/agent/"
   echo "  Evolution  : https://${DOMAIN_EVOLUTION}"
   echo
+  echo -e "${BOLD}${CYAN}Webhook da Evolution API (cole em cada instância):${NC}"
+  echo "  URL    : https://${DOMAIN_PLATFORM}/webhook"
+  echo "  Eventos: MESSAGES_UPSERT, CONNECTION_UPDATE, QRCODE_UPDATED"
+  echo "  Como   : Manager → ${DOMAIN_EVOLUTION}/manager → Webhook"
+  echo "  OU via curl:"
+  echo "  curl -X POST https://${DOMAIN_EVOLUTION}/webhook/set/NOME_DA_INSTANCIA \\"
+  echo "    -H \"apikey: \$EVOLUTION_GLOBAL_KEY\" -H 'Content-Type: application/json' \\"
+  echo "    -d '{\"enabled\":true,\"url\":\"https://${DOMAIN_PLATFORM}/webhook\",\"webhookByEvents\":false,\"events\":[\"MESSAGES_UPSERT\",\"CONNECTION_UPDATE\",\"QRCODE_UPDATED\"]}'"
+  echo
   echo -e "${BOLD}Chaves importantes (${PROJECT_DIR}/.env):${NC}"
   echo "  EVOLUTION_GLOBAL_KEY : $(grep ^EVOLUTION_GLOBAL_KEY "${PROJECT_DIR}/.env" | cut -d= -f2)"
   echo "  OPENAI_KEY           : sk-****$(grep ^OPENAI_KEY "${PROJECT_DIR}/.env" | cut -d= -f2 | tail -c 5)"
@@ -614,7 +623,7 @@ print_summary() {
     echo "  Email : ${ADMIN_EMAIL}"
     echo "  Senha : ${SUPERADMIN_PASSWORD}"
     if [[ -n "${DEFAULT_TENANT_CREATED:-}" ]]; then
-      echo "  Contexto: superadmin + admin do tenant 'default' (mesma senha)."
+      echo "  Tenant: ${TENANT_NAME} (slug=${TENANT_SLUG}) — mesma senha do superadmin"
     fi
     echo
   fi
