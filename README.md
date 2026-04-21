@@ -165,6 +165,36 @@ Sobe 3 containers: `traefik` (SSL), `evolution-postgres` (banco dedicado, usuár
 
 ---
 
+## 📲 Webhook da Evolution API (WhatsApp)
+
+O Agent Python expõe `POST /webhook` para receber mensagens do WhatsApp. O Traefik + nginx-frontend já proxy-passam esse path, então a URL pública pra configurar em cada instância da Evolution é:
+
+```
+https://SEU_DOMINIO_PLATAFORMA/webhook
+```
+
+**Configurar pela UI da Evolution** — abra `https://SEU_DOMINIO_EVOLUTION/manager`, selecione a instância → *Webhook* → cole a URL acima, marque os eventos `MESSAGES_UPSERT` (e outros que quiser) → salvar.
+
+**Configurar via API** (mesma coisa em CLI):
+```bash
+curl -X POST https://SEU_DOMINIO_EVOLUTION/webhook/set/NOME_DA_INSTANCIA \
+  -H "apikey: SUA_EVOLUTION_GLOBAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "url": "https://SEU_DOMINIO_PLATAFORMA/webhook",
+    "webhookByEvents": false,
+    "webhookBase64": false,
+    "events": ["MESSAGES_UPSERT","CONNECTION_UPDATE","QRCODE_UPDATED"]
+  }'
+```
+
+A `EVOLUTION_GLOBAL_KEY` está em `/var/www/agente_forum_telecom/.env` — o instalador também imprime no resumo final.
+
+Vale para os 3 cenários de instalação: o webhook é sempre o **domínio da plataforma**, independente de a Evolution estar no mesmo servidor (cenário 1) ou em um servidor separado (cenário 3).
+
+---
+
 ## 🔄 Atualizações em servidores já instalados
 
 **Nunca rode `install.sh` duas vezes no mesmo servidor** — ele regenera o `.env` com senhas novas enquanto os volumes Postgres/Redis ainda têm as senhas antigas, e a stack quebra. Pra atualizar código:
