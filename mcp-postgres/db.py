@@ -95,16 +95,20 @@ async def get_device_with_encrypted(device_id: str) -> dict | None:
     return _row_to_dict(row)
 
 
-async def search_devices(query: str) -> list[dict]:
+async def search_devices(query: str, active: bool | None = None) -> list[dict]:
     schema = _schema()
+    args = [f"%{query}%"]
+    clauses = ["(name ILIKE $1 OR host ILIKE $1 OR tags::text ILIKE $1)"]
+    if active is not None:
+        args.append(active)
+        clauses.append(f"active = ${len(args)}")
     sql = (
         f'SELECT {_PUBLIC_COLS} FROM "{schema}".devices '
-        f"WHERE name ILIKE $1 OR host ILIKE $1 OR tags::text ILIKE $1 "
-        f"ORDER BY name"
+        f"WHERE {' AND '.join(clauses)} ORDER BY name"
     )
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(sql, f"%{query}%")
+        rows = await conn.fetch(sql, *args)
     return [_row_to_dict(r) for r in rows]
 
 

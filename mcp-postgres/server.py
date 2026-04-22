@@ -47,16 +47,21 @@ def _err(message: str) -> str:
 async def device_list(type: str = "", active: str = "") -> str:
     """Lista equipamentos do tenant (sem senha).
 
+    Por padrão retorna somente ativos. Passe `active="false"` para ver só
+    inativos, ou `active="all"` para listar todos.
+
     Args:
         type: filtra por tipo (ex.: "mikrotik", "linux"). Vazio = todos.
-        active: "true" / "false" para filtrar por ativo. Vazio = todos.
+        active: "true" (padrão), "false" (só inativos) ou "all" (todos).
     """
     type_filter = type or None
-    active_filter: bool | None = None
-    if active.lower() == "true":
-        active_filter = True
-    elif active.lower() == "false":
+    mode = (active or "true").lower()
+    if mode == "all":
+        active_filter: bool | None = None
+    elif mode == "false":
         active_filter = False
+    else:
+        active_filter = True
     devices = await db.list_devices(type_filter, active_filter)
     return _ok(devices)
 
@@ -73,11 +78,22 @@ async def device_get(id: str) -> str:
 
 
 @mcp.tool()
-async def device_search(query: str) -> str:
-    """Busca equipamentos por name, host ou tags (ILIKE %query%)."""
+async def device_search(query: str, active: str = "") -> str:
+    """Busca equipamentos por name, host ou tags (ILIKE %query%).
+
+    Por padrão retorna somente ativos. Use `active="all"` para incluir inativos
+    ou `active="false"` para buscar só inativos.
+    """
     if not query:
         return _err("query é obrigatório")
-    devices = await db.search_devices(query)
+    mode = (active or "true").lower()
+    if mode == "all":
+        active_filter: bool | None = None
+    elif mode == "false":
+        active_filter = False
+    else:
+        active_filter = True
+    devices = await db.search_devices(query, active_filter)
     return _ok(devices)
 
 

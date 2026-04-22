@@ -218,9 +218,9 @@ export default function DocsMcpDb() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            <tr><td className="px-4 py-2 font-mono text-text">device_list</td><td className="px-4 py-2 text-text-muted">Lista equipamentos (sem senha). Filtros opcionais: type, active.</td></tr>
+                            <tr><td className="px-4 py-2 font-mono text-text">device_list</td><td className="px-4 py-2 text-text-muted">Lista equipamentos ativos (sem senha). Use <code className="bg-black/30 px-1 rounded">active="all"</code> pra incluir inativos.</td></tr>
                             <tr><td className="px-4 py-2 font-mono text-text">device_get</td><td className="px-4 py-2 text-text-muted">Busca um equipamento pelo id (sem senha).</td></tr>
-                            <tr><td className="px-4 py-2 font-mono text-text">device_search</td><td className="px-4 py-2 text-text-muted">Busca por name/host/tags (ILIKE).</td></tr>
+                            <tr><td className="px-4 py-2 font-mono text-text">device_search</td><td className="px-4 py-2 text-text-muted">Busca por name/host/tags (ILIKE) — só ativos por padrão; use <code className="bg-black/30 px-1 rounded">active="all"</code> pra incluir inativos.</td></tr>
                             <tr><td className="px-4 py-2 font-mono text-amber-400">device_get_credentials</td><td className="px-4 py-2 text-text-muted">Decifra e retorna senha em claro (use só quando for abrir SSH).</td></tr>
                             <tr><td className="px-4 py-2 font-mono text-text">device_create</td><td className="px-4 py-2 text-text-muted">Cria equipamento. Senha é cifrada antes de persistir.</td></tr>
                             <tr><td className="px-4 py-2 font-mono text-text">device_update</td><td className="px-4 py-2 text-text-muted">Atualiza campos não sensíveis (name, host, tags, active, etc).</td></tr>
