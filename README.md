@@ -39,6 +39,7 @@ Multi-tenant SaaS: cada cliente tem um schema dedicado em Postgres, isolamento p
 | Agent | Python 3.11 + FastAPI + OpenAI | Orquestrador de skills + RAG memory (pgvector) |
 | MCP MikroTik | Python (Docker) | Driver SSH para RouterOS |
 | MCP Linux | Python (Docker) | Driver SSH para servidores Linux |
+| MCP Postgres | Python (Docker) | CRUD de devices exposto via HTTPS/Bearer — consumo remoto pelo Claude Code |
 | WireGuard | Docker (host network) | VPN concentrador |
 | Database | PostgreSQL 16 + pgvector | Multi-schema (1 schema por tenant) |
 | Cache | Redis 7 | Sessões, filas |
@@ -57,6 +58,7 @@ agente_forum_telecom/
 ├── frontend/                    # Frontend React
 ├── mcp-mikrotik/                # MCP MikroTik (Docker build)
 ├── mcp-linux/                   # MCP Linux (Docker build)
+├── mcp-postgres/                # MCP Postgres — CRUD de devices via Bearer token
 ├── docker/wireguard/            # Dockerfile do WireGuard
 ├── traefik/                     # Reverse proxy + SSL
 ├── docs/                        # Documentação detalhada
@@ -202,12 +204,36 @@ Vale para os 3 cenários de instalação: o webhook é sempre o **domínio da pl
 ```bash
 cd /var/www/agente_forum_telecom
 git pull
-bash deploy.sh              # reinstala deps da API/Agent/Frontend + reaplica init.sql + reinicia PM2
+bash deploy.sh              # reinstala deps + reaplica init.sql + builda containers novos + reinicia PM2
 # ou apenas:
 bash deploy-frontend.sh     # rebuild + redeploy só do frontend
 ```
 
-O `init.sql` é idempotente: `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `ON CONFLICT DO NOTHING`. `deploy.sh` pode rodar várias vezes sem corromper dados.
+O que o `deploy.sh` cobre em uma instalação antiga:
+
+- **Containers novos** (ex.: `mcp-postgres`) — `docker compose up -d` cria e builda na primeira execução.
+- **API Node / Agent Python** — `npm install` + `pip install -r requirements.txt` + `pm2 restart` pegam o código novo.
+- **Frontend** — `npm run build` atualiza `frontend/dist`, que o nginx serve via bind-mount (sem restart).
+- **Traefik** — reescreve `traefik/config/host-services.yml` e aplica no `docker compose up -d`.
+- **Schema Postgres** — `init.sql` idempotente (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `ON CONFLICT DO NOTHING`).
+- **`.env` de instalação antiga** — se estiver faltando alguma variável nova (ex.: `MCP_DB_TOKEN`, `MCP_DB_URL`, `MCP_DB_TENANT_SCHEMA`), o `deploy.sh` detecta e adiciona automaticamente (token aleatório, tenant do banco, URL derivada do `PUBLIC_URL`).
+
+⚠️ **Código mudou dentro de um container existente?** `docker compose up -d` sem `--build` reusa imagem cacheada. Rode explicitamente:
+```bash
+docker compose up -d --build <serviço>   # ex.: mcp-postgres, mcp-mikrotik, mcp-linux
+```
+
+⚠️ **Domínio customizado no `docker-compose.yml`?** `install.sh` faz `sed` nos domínios durante a instalação, então instalações com domínio próprio divergem do arquivo no git. No `git pull` vai dar conflito nas linhas dos domínios. Resolva assim:
+```bash
+# Opção A — manter seu domínio, perdendo só nas linhas de conflito:
+git stash                      # guarda suas mudanças locais
+git pull                       # atualiza o código
+git stash pop                  # reaplica — vai conflitar, edite e mantenha seu domínio
+# Opção B — reaplicar do zero (mais simples):
+git checkout HEAD -- docker-compose.yml
+git pull
+# ajuste manualmente o domínio nas labels dos routers Traefik
+```
 
 **Se precisar reinstalar do zero no mesmo servidor:**
 ```bash
@@ -232,6 +258,9 @@ Os instaladores geram `.env` automaticamente. Você só informa `OPENAI_KEY` no 
 | `INTERNAL_API_SECRET` | gerada | Auth Agent → API interno |
 | `EVOLUTION_GLOBAL_KEY` | gerada | Header `apikey` da Evolution |
 | `OPENAI_KEY` | **você fornece** | Chave OpenAI (`sk-...`) |
+| `MCP_DB_TOKEN` | gerada | Bearer token do MCP Postgres (acesso remoto ao DB) |
+| `MCP_DB_URL` | derivada | `https://${DOMAIN_PLATFORM}/mcp` |
+| `MCP_DB_TENANT_SCHEMA` | derivada | Schema do tenant servido pelo MCP Postgres |
 | `PUBLIC_URL` | derivada | `https://${DOMAIN_PLATFORM}` |
 | `VITE_API_URL` / `VITE_WS_URL` | derivadas | Injetadas no build do frontend |
 
@@ -250,6 +279,7 @@ O `.env.example` é apenas referência — serve caso precise regenerar um `.env
 | 8000 | Agent Python (host, PM2) | loopback |
 | 8001 | MCP MikroTik (Docker) | loopback |
 | 8002 | MCP Linux (Docker) | loopback |
+| 8003 | MCP Postgres (Docker) | loopback — tráfego público passa pelo Traefik em `${DOMAIN_PLATFORM}/mcp` |
 | 5432 | PostgreSQL | loopback |
 | 6379 | Redis | loopback |
 
@@ -275,6 +305,18 @@ cd frontend && npm install && npm run dev
 # Infra mínima para subir só o banco/cache
 docker compose up -d postgres redis
 ```
+
+---
+
+## 🔐 MCP Postgres — acesso remoto ao DB via Claude Code
+
+Um servidor MCP (FastMCP + streamable-http) expõe o CRUD de `devices` do tenant pra um Claude Code rodando em outra máquina — útil pra listar equipamentos, pegar credenciais de SSH e ajustar dados sem precisar abrir o painel web.
+
+- URL: `https://${DOMAIN_PLATFORM}/mcp` (Traefik + SSL, sem DNS novo).
+- Auth: Bearer token estático em `MCP_DB_TOKEN` (gerado no install).
+- Tools: `device_list`, `device_get`, `device_search`, `device_get_credentials`, `device_create`, `device_update`, `device_update_credentials`, `device_delete`.
+- Senhas: cifradas com a mesma chave `ENCRYPTION_KEY` da API (AES-256-GCM); `device_get_credentials` retorna em claro sob demanda.
+- Como conectar: abra no painel **Documentação → MCP Postgres (remoto)** (admin-only) — o comando `claude mcp add …` aparece pronto, com token embutido no clipboard.
 
 ---
 
