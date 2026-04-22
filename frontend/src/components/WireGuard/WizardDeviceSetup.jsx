@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Server, CheckCircle, ChevronRight, Terminal, Network, Copy, Check } from 'lucide-react';
+import { X, Server, CheckCircle, ChevronRight, Terminal, Network, Copy, Check, Download } from 'lucide-react';
 import api from '../../lib/api';
 
-const WizardDeviceSetup = ({ onClose, onComplete }) => {
+const WizardDeviceSetup = ({ onClose, onComplete, initialOsType = 'mikrotik', initialStep = 1 }) => {
     const queryClient = useQueryClient();
-    const [step, setStep] = useState(1);
-    const [osType, setOsType] = useState('mikrotik');
+    const [step, setStep] = useState(initialStep);
+    const [osType, setOsType] = useState(initialOsType);
     const [deviceName, setDeviceName] = useState('');
     const [deviceId, setDeviceId] = useState('');
     const [configData, setConfigData] = useState(null);
@@ -51,27 +51,92 @@ const WizardDeviceSetup = ({ onClose, onComplete }) => {
             ].join('\n');
         }
 
-        return [
-            `# /etc/wireguard/wg-netagent.conf`,
-            `[Interface]`,
-            `PrivateKey = ${peer.private_key}`,
-            `Address = ${peer.ip_address}/24`,
-            ``,
-            `[Peer]`,
-            `PublicKey = ${server.public_key}`,
-            `Endpoint = ${server.endpoint}`,
-            `AllowedIPs = ${server.server_ip}/24`,
-            `PersistentKeepalive = 25`,
-            ``,
-            `# sudo wg-quick up wg-netagent`,
-        ].join('\n');
+        // Linux: script bash auto-executável e idempotente.
+        const serverSubnet = `${server.server_ip.replace(/\.\d+$/, '.0')}/24`;
+        return `#!/usr/bin/env bash
+# NetAgent WireGuard — instala e ativa o peer "${deviceName}"
+# Gerado em ${new Date().toISOString()}
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+    echo "Rode como root: sudo bash $0"
+    exit 1
+fi
+
+IFACE="wg-netagent"
+
+echo "[1/4] Instalando wireguard-tools..."
+if ! command -v wg-quick >/dev/null 2>&1; then
+    if   command -v apt-get >/dev/null; then DEBIAN_FRONTEND=noninteractive apt-get update -qq && apt-get install -y wireguard-tools iproute2
+    elif command -v dnf     >/dev/null; then dnf install -y wireguard-tools
+    elif command -v yum     >/dev/null; then yum install -y epel-release && yum install -y wireguard-tools
+    elif command -v apk     >/dev/null; then apk add wireguard-tools iproute2
+    else echo "Gerenciador de pacotes desconhecido. Instale wireguard-tools manualmente e reexecute."; exit 1
+    fi
+fi
+
+echo "[2/4] Gravando /etc/wireguard/\${IFACE}.conf..."
+install -d -m 700 /etc/wireguard
+umask 077
+cat > /etc/wireguard/\${IFACE}.conf <<'EOF'
+[Interface]
+PrivateKey = ${peer.private_key}
+Address    = ${peer.ip_address}/24
+
+[Peer]
+PublicKey           = ${server.public_key}
+Endpoint            = ${server.endpoint}
+AllowedIPs          = ${serverSubnet}
+PersistentKeepalive = 25
+EOF
+chmod 600 /etc/wireguard/\${IFACE}.conf
+
+echo "[3/4] Ativando e habilitando no boot..."
+if systemctl is-active --quiet wg-quick@\${IFACE}; then
+    systemctl restart wg-quick@\${IFACE}
+else
+    systemctl enable --now wg-quick@\${IFACE}
+fi
+
+echo "[4/4] Verificando..."
+sleep 2
+if wg show \${IFACE} >/dev/null 2>&1; then
+    echo
+    echo "✅ Túnel ativo."
+    echo "   IP local: ${peer.ip_address}"
+    echo "   Servidor: ${server.server_ip}"
+    echo
+    echo "Teste: ping -c2 ${server.server_ip}"
+else
+    echo "❌ Falha ao subir o túnel. Logs:"
+    journalctl -u wg-quick@\${IFACE} --no-pager -n 30 || true
+    exit 1
+fi
+`;
     };
+
+    const scriptFilename = () =>
+        osType === 'mikrotik'
+            ? `wg-${(deviceName || 'peer').replace(/[^a-zA-Z0-9_-]/g, '_')}.rsc`
+            : `install-wg-${(deviceName || 'peer').replace(/[^a-zA-Z0-9_-]/g, '_')}.sh`;
 
     const handleCopy = () => {
         navigator.clipboard.writeText(getScriptText()).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         });
+    };
+
+    const handleDownload = () => {
+        const blob = new Blob([getScriptText()], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = scriptFilename();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     return (
@@ -181,18 +246,33 @@ const WizardDeviceSetup = ({ onClose, onComplete }) => {
                             </div>
 
                             <div className="mt-4">
-                                <div className="flex justify-between items-center mb-2">
+                                <div className="flex justify-between items-center mb-2 gap-2 flex-wrap">
                                     <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                                        Script para {osType === 'mikrotik' ? 'RouterOS (MikroTik)' : 'Linux (wg-quick)'}
+                                        {osType === 'mikrotik' ? 'Comandos RouterOS (MikroTik)' : 'Script de instalação Linux'}
                                     </h3>
-                                    <button
-                                        onClick={handleCopy}
-                                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                                    >
-                                        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                                        {copied ? 'Copiado!' : 'Copiar'}
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleDownload}
+                                            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-bg-elevated border border-border text-text hover:bg-bg-muted transition-colors"
+                                            title={`Baixar ${scriptFilename()}`}
+                                        >
+                                            <Download className="w-3.5 h-3.5" />
+                                            Baixar .{osType === 'mikrotik' ? 'rsc' : 'sh'}
+                                        </button>
+                                        <button
+                                            onClick={handleCopy}
+                                            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                                        >
+                                            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                            {copied ? 'Copiado!' : 'Copiar'}
+                                        </button>
+                                    </div>
                                 </div>
+                                {osType === 'linux' && (
+                                    <p className="text-xs text-text-muted mb-2">
+                                        Salve como <code className="bg-black/30 px-1 rounded">{scriptFilename()}</code> no servidor Linux e rode <code className="bg-black/30 px-1 rounded">sudo bash {scriptFilename()}</code>. Ele instala wireguard-tools, grava o conf e sobe o serviço no boot.
+                                    </p>
+                                )}
                                 <pre className="p-4 overflow-x-auto text-[13px] font-mono leading-relaxed text-[#c9d1d9] bg-[#0d1117] rounded-lg border border-border select-all whitespace-pre-wrap">
                                     {getScriptText()}
                                 </pre>

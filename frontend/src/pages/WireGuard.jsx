@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Network, Trash2, Shield, Wifi, WifiOff, ArrowUpDown, Plus } from 'lucide-react';
+import { Network, Trash2, Shield, Wifi, WifiOff, ArrowUpDown, Plus, Terminal } from 'lucide-react';
 import api from '../lib/api';
 import WizardDeviceSetup from '../components/WireGuard/WizardDeviceSetup';
 
@@ -23,7 +23,7 @@ function timeAgo(isoString) {
 
 const WireGuard = () => {
     const queryClient = useQueryClient();
-    const [showWizardModal, setShowWizardModal] = useState(false);
+    const [wizardState, setWizardState] = useState(null); // null | { initialOsType, initialStep }
 
     const { data: serverStatus, isLoading } = useQuery({
         queryKey: ['wg-server-status'],
@@ -47,12 +47,21 @@ const WireGuard = () => {
                     <Network className="w-8 h-8 text-primary" />
                     VPN WireGuard
                 </h1>
-                <button
-                    onClick={() => setShowWizardModal(true)}
-                    className="btn btn-primary flex items-center gap-2"
-                >
-                    <Plus className="w-4 h-4" /> Adicionar Peer
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setWizardState({ initialOsType: 'linux', initialStep: 2 })}
+                        className="btn btn-secondary flex items-center gap-2"
+                        title="Cria peer Linux e entrega um script .sh pronto pra rodar no servidor"
+                    >
+                        <Terminal className="w-4 h-4" /> Peer Linux (rápido)
+                    </button>
+                    <button
+                        onClick={() => setWizardState({ initialOsType: 'mikrotik', initialStep: 1 })}
+                        className="btn btn-primary flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" /> Adicionar Peer
+                    </button>
+                </div>
             </div>
 
             {/* Server Info Cards */}
@@ -173,9 +182,11 @@ const WireGuard = () => {
             </div>
 
             {/* Wizard Modal */}
-            {showWizardModal && (
+            {wizardState && (
                 <WizardDeviceSetup
-                    onClose={() => setShowWizardModal(false)}
+                    initialOsType={wizardState.initialOsType}
+                    initialStep={wizardState.initialStep}
+                    onClose={() => setWizardState(null)}
                     onComplete={() => queryClient.invalidateQueries({ queryKey: ['wg-server-status'] })}
                 />
             )}
