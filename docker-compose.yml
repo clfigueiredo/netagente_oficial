@@ -173,6 +173,40 @@ services:
     networks:
       - netagent-net
 
+  # ── MCP Postgres Driver (CRUD de devices via Bearer token, exposto via Traefik)
+  mcp-postgres:
+    build: ./mcp-postgres
+    container_name: mcp-postgres
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      PORT: "8003"
+      DB_HOST: netagent-postgres
+      DB_PORT: "5432"
+      DB_NAME: netagent
+      DB_USER: netagent
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      TENANT_SCHEMA: ${MCP_DB_TENANT_SCHEMA:-forumtelecom}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      MCP_DB_TOKEN: ${MCP_DB_TOKEN}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "127.0.0.1:8003:8003"
+    networks:
+      - netagent-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mcp-postgres-https.rule=Host(`agente.forumtelecom.com.br`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.mcp-postgres-https.entrypoints=websecure"
+      - "traefik.http.routers.mcp-postgres-https.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.mcp-postgres-https.priority=100"
+      - "traefik.http.services.mcp-postgres.loadbalancer.server.port=8003"
+
   # ── WireGuard VPN Server (Concentrator) - Per-tenant interfaces
   wireguard:
     build: ./docker/wireguard

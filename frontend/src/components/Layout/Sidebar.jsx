@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
     LayoutDashboard, Server, MessageSquare, History,
-    Clock, Settings, ShieldCheck, LogOut, Wifi, Zap, BookOpen, ChevronDown, ChevronRight, Layers, Activity, Cpu, HardDrive, Network, Box, Brain
+    Clock, Settings, ShieldCheck, LogOut, Wifi, Zap, BookOpen, ChevronDown, ChevronRight, Layers, Activity, Cpu, HardDrive, Network, Box, Brain, Database
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { disconnectSocket } from '../../lib/socket'
@@ -145,6 +145,12 @@ export default function Sidebar() {
                                 className={({ isActive }) => clsx("flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors", isActive ? "text-primary bg-primary/5" : "text-text-muted hover:text-text")}
                             >
                                 <Brain size={14} /> Memória RAG
+                            </NavLink>
+                            <NavLink
+                                to="/docs/mcp-db"
+                                className={({ isActive }) => clsx("flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors", isActive ? "text-violet-500 bg-violet-500/5" : "text-text-muted hover:text-text")}
+                            >
+                                <Database size={14} /> MCP Postgres (remoto)
                             </NavLink>
                         </div>
                     )}

@@ -113,6 +113,7 @@ prompt_config() {
   step "Configuração"
   DOMAIN_PLATFORM=$(read_domain "Domínio da Plataforma" "${DEFAULT_DOMAIN_PLATFORM}")
   DOMAIN_EVOLUTION=$(read_domain "Domínio da Evolution API" "${DEFAULT_DOMAIN_EVOLUTION}")
+  # MCP Postgres é servido sob o mesmo domínio da plataforma no path /mcp (sem DNS novo).
 
   read -rp "E-mail para Let's Encrypt [${DEFAULT_EMAIL_SSL}]: " EMAIL_SSL
   EMAIL_SSL="$(echo -n "${EMAIL_SSL:-$DEFAULT_EMAIL_SSL}" | tr -d '[:space:]')"
@@ -152,6 +153,7 @@ prompt_config() {
   echo "  Projeto       : ${PROJECT_DIR}"
   echo "  Plataforma    : https://${DOMAIN_PLATFORM}"
   echo "  Evolution API : https://${DOMAIN_EVOLUTION}"
+  echo "  MCP Postgres  : https://${DOMAIN_PLATFORM}/mcp"
   echo "  E-mail SSL    : ${EMAIL_SSL}"
   echo "  Superadmin    : ${ADMIN_EMAIL}"
   echo "  Tenant        : ${TENANT_NAME} (slug=${TENANT_SLUG})"
@@ -269,6 +271,7 @@ generate_env() {
   ENCRYPTION_KEY=$(gen_secret)
   INTERNAL_API_SECRET=$(gen_secret)
   EVOLUTION_GLOBAL_KEY=$(gen_secret)
+  MCP_DB_TOKEN=$(gen_secret)
 
   cat > "${PROJECT_DIR}/.env" <<EOF
 # === Banco
@@ -290,6 +293,11 @@ OPENAI_KEY=${OPENAI_KEY}
 # === Evolution API (chave gerada neste install)
 EVOLUTION_GLOBAL_KEY=${EVOLUTION_GLOBAL_KEY}
 EVOLUTION_BASE_URL=https://${DOMAIN_EVOLUTION}
+
+# === MCP Postgres (acesso remoto ao DB via Bearer token)
+MCP_DB_TOKEN=${MCP_DB_TOKEN}
+MCP_DB_TENANT_SCHEMA=${TENANT_SLUG}
+MCP_DB_URL=https://${DOMAIN_PLATFORM}/mcp
 
 # === URLs públicas
 PUBLIC_URL=https://${DOMAIN_PLATFORM}
@@ -588,6 +596,11 @@ verify() {
   else
     warn "MCP Linux: aguardando build"; fail=1
   fi
+  if curl -fsS http://127.0.0.1:8003/health >/dev/null 2>&1; then
+    log "MCP Postgres (:8003): OK"
+  else
+    warn "MCP Postgres: aguardando build"; fail=1
+  fi
 
   return $fail
 }
@@ -600,10 +613,11 @@ print_summary() {
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo -e "${NC}"
   echo -e "${BOLD}Endpoints públicos:${NC}"
-  echo "  Plataforma : https://${DOMAIN_PLATFORM}"
-  echo "  API        : https://${DOMAIN_PLATFORM}/api/health"
-  echo "  Agent      : https://${DOMAIN_PLATFORM}/agent/"
-  echo "  Evolution  : https://${DOMAIN_EVOLUTION}"
+  echo "  Plataforma  : https://${DOMAIN_PLATFORM}"
+  echo "  API         : https://${DOMAIN_PLATFORM}/api/health"
+  echo "  Agent       : https://${DOMAIN_PLATFORM}/agent/"
+  echo "  Evolution   : https://${DOMAIN_EVOLUTION}"
+  echo "  MCP Postgres: https://${DOMAIN_PLATFORM}/mcp  (Bearer token abaixo)"
   echo
   echo -e "${BOLD}${CYAN}Webhook da Evolution API (cole em cada instância):${NC}"
   echo "  URL    : https://${DOMAIN_PLATFORM}/webhook"
@@ -617,6 +631,15 @@ print_summary() {
   echo -e "${BOLD}Chaves importantes (${PROJECT_DIR}/.env):${NC}"
   echo "  EVOLUTION_GLOBAL_KEY : $(grep ^EVOLUTION_GLOBAL_KEY "${PROJECT_DIR}/.env" | cut -d= -f2)"
   echo "  OPENAI_KEY           : sk-****$(grep ^OPENAI_KEY "${PROJECT_DIR}/.env" | cut -d= -f2 | tail -c 5)"
+  echo "  MCP_DB_TOKEN         : $(grep ^MCP_DB_TOKEN "${PROJECT_DIR}/.env" | cut -d= -f2)"
+  echo
+
+  echo -e "${BOLD}${CYAN}MCP Postgres — conectar Claude Code remoto:${NC}"
+  echo "  No outro Claude Code, rode:"
+  echo "  claude mcp add --transport http netagent-db \\"
+  echo "    https://${DOMAIN_PLATFORM}/mcp \\"
+  echo "    --header \"Authorization: Bearer \$(grep ^MCP_DB_TOKEN ${PROJECT_DIR}/.env | cut -d= -f2)\""
+  echo "  Tenant schema servido: ${TENANT_SLUG}"
   echo
   if [[ -n "${SUPERADMIN_PASSWORD:-}" ]]; then
     echo -e "${BOLD}${YELLOW}Credenciais iniciais (anote agora — não serão reexibidas):${NC}"

@@ -6,6 +6,11 @@ const prisma = require('../db/prisma');
 
 const router = express.Router();
 
+const requireTenantAdmin = (req, res, next) => {
+    if (req.user?.isSuperAdmin || req.user?.role === 'admin') return next();
+    next(createError(403, 'Acesso restrito a administradores'));
+};
+
 const userSchema = z.object({
     email: z.string().email(),
     password: z.string().min(8),
@@ -207,6 +212,21 @@ router.get('/whatsapp-status', async (req, res, next) => {
             res.json({ state: 'offline', instance });
         }
     } catch (err) { next(err); }
+});
+
+// ── MCP Postgres (acesso externo ao DB) ───────────────────────────────────────
+
+// GET /settings/mcp-db — URL + token pro Claude Code remoto. Admin-only.
+router.get('/mcp-db', requireTenantAdmin, (req, res) => {
+    const url = process.env.MCP_DB_URL || '';
+    const token = process.env.MCP_DB_TOKEN || '';
+    const tenantSchema = process.env.MCP_DB_TENANT_SCHEMA || req.tenantSchema || '';
+    res.json({
+        configured: Boolean(url && token),
+        url,
+        token,
+        tenantSchema,
+    });
 });
 
 module.exports = router;

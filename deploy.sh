@@ -17,6 +17,33 @@ cd "${PROJECT_DIR}"
 [[ -f ".env" ]] || { echo "Crie o .env primeiro (copie de .env.example)"; exit 1; }
 set -a; source .env; set +a
 
+# ── Migração: MCP_DB_* ausente (instalações anteriores ao feat do MCP Postgres)
+if ! grep -q "^MCP_DB_TOKEN=" .env; then
+  info "Migração: adicionando variáveis do MCP Postgres ao .env..."
+  NEW_MCP_TOKEN=$(openssl rand -hex 32)
+
+  # Tenant schema: primeiro tenant ativo no banco; fallback pro subdomínio da plataforma.
+  NEW_MCP_TENANT=$(PGPASSWORD="${POSTGRES_PASSWORD}" docker exec netagent-postgres \
+    psql -U netagent -d netagent -tAc \
+    "SELECT slug FROM public.tenants ORDER BY created_at LIMIT 1" 2>/dev/null | tr -d '[:space:]' || true)
+  if [[ -z "${NEW_MCP_TENANT}" ]]; then
+    NEW_MCP_TENANT=$(echo "${PUBLIC_URL:-https://main.local}" | sed -E 's|https?://||; s|\..*||' | tr -cd 'a-z0-9_')
+    [[ -z "${NEW_MCP_TENANT}" ]] && NEW_MCP_TENANT="main"
+  fi
+
+  NEW_MCP_URL="${PUBLIC_URL:-https://agente.forumtelecom.com.br}/mcp"
+
+  cat >> .env <<EOF
+
+# === MCP Postgres (migração automática via deploy.sh)
+MCP_DB_TOKEN=${NEW_MCP_TOKEN}
+MCP_DB_TENANT_SCHEMA=${NEW_MCP_TENANT}
+MCP_DB_URL=${NEW_MCP_URL}
+EOF
+  set -a; source .env; set +a
+  log "MCP_DB_* adicionado (tenant=${NEW_MCP_TENANT}, url=${NEW_MCP_URL})."
+fi
+
 # ── 1. Criar diretórios de dados ──────────────────────────────────────────────
 info "Criando diretórios..."
 mkdir -p data/postgres data/redis data/evolution \

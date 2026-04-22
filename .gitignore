@@ -56,10 +56,12 @@ Thumbs.db
 
 # ── Gemini / AI Agent workspace ──────────────────────────────
 .agent/
+.claude/
 
 # ── MCP __pycache__ ──────────────────────────────────────────
 mcp-mikrotik/__pycache__/
 mcp-linux/__pycache__/
+mcp-postgres/__pycache__/
 
 # ── Lock files (keep package-lock.json, pnpm-lock.yaml) ──────
 # package-lock.json and pnpm-lock.yaml ARE tracked (intentional)

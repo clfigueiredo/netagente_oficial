@@ -22,6 +22,7 @@ import DocsBackups from './pages/DocsBackups'
 import DocsWireguard from './pages/DocsWireguard'
 import DocsDeploy from './pages/DocsDeploy'
 import DocsMemory from './pages/DocsMemory'
+import DocsMcpDb from './pages/DocsMcpDb'
 
 function ProtectedRoute({ children, requireSuperAdmin = false }) {
     const { token, user } = useAuthStore()
@@ -57,6 +58,7 @@ export default function App() {
                         <Route path="wireguard" element={<DocsWireguard />} />
                         <Route path="deploy" element={<DocsDeploy />} />
                         <Route path="memory" element={<DocsMemory />} />
+                        <Route path="mcp-db" element={<DocsMcpDb />} />
                     </Route>
                     <Route path="settings" element={<Settings />} />
                     <Route path="admin" element={
